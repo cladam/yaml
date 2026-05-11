@@ -1,2 +1,10 @@
 # yaml
-hica yaml parser
+
+## Usage
+
+```sh
+hica build   # compile to binary
+hica run     # compile and run
+hica check   # type-check without emitting
+hica clean   # remove generated files
+```
