@@ -204,7 +204,7 @@ test "quoted null is string" {
 
 // --- Map tests ---
 
-test "simple map name key" {
+test "simple map" {
   let input = "name: my-project\nversion: 1"
   match yaml_parse(input) {
     Ok(doc) => {
@@ -212,15 +212,6 @@ test "simple map name key" {
         Some(v) => assert(yaml_str(v) == Some("my-project")),
         _ => assert(false)
       }
-    },
-    _ => assert(false)
-  }
-}
-
-test "simple map version key" {
-  let input = "name: my-project\nversion: 1"
-  match yaml_parse(input) {
-    Ok(doc) => {
       match yaml_get(doc, "version") {
         Some(v) => assert(yaml_int(v) == Some(1)),
         _ => assert(false)
@@ -230,7 +221,7 @@ test "simple map version key" {
   }
 }
 
-test "map with bool value" {
+test "map with bool and null" {
   let input = "enabled: true\ndata: null"
   match yaml_parse(input) {
     Ok(doc) => {
@@ -238,15 +229,6 @@ test "map with bool value" {
         Some(v) => assert(yaml_bool(v) == Some(true)),
         _ => assert(false)
       }
-    },
-    _ => assert(false)
-  }
-}
-
-test "map with null value" {
-  let input = "enabled: true\ndata: null"
-  match yaml_parse(input) {
-    Ok(doc) => {
       match yaml_get(doc, "data") {
         Some(YNull) => assert(true),
         _ => assert(false)
@@ -256,7 +238,7 @@ test "map with null value" {
   }
 }
 
-test "nested map host" {
+test "nested map" {
   let input = "database:\n  host: localhost\n  port: 5432"
   match yaml_parse(input) {
     Ok(doc) => {
@@ -266,20 +248,6 @@ test "nested map host" {
             Some(v) => assert(yaml_str(v) == Some("localhost")),
             _ => assert(false)
           }
-        },
-        _ => assert(false)
-      }
-    },
-    _ => assert(false)
-  }
-}
-
-test "nested map port" {
-  let input = "database:\n  host: localhost\n  port: 5432"
-  match yaml_parse(input) {
-    Ok(doc) => {
-      match yaml_get(doc, "database") {
-        Some(inner) => {
           match yaml_get(inner, "port") {
             Some(v) => assert(yaml_int(v) == Some(5432)),
             _ => assert(false)
@@ -292,7 +260,7 @@ test "nested map port" {
   }
 }
 
-test "map with comments name" {
+test "map with comments" {
   let input = "# this is a comment\nname: test\n# another comment\nport: 80"
   match yaml_parse(input) {
     Ok(doc) => {
@@ -300,15 +268,6 @@ test "map with comments name" {
         Some(v) => assert(yaml_str(v) == Some("test")),
         _ => assert(false)
       }
-    },
-    _ => assert(false)
-  }
-}
-
-test "map with comments port" {
-  let input = "# this is a comment\nname: test\n# another comment\nport: 80"
-  match yaml_parse(input) {
-    Ok(doc) => {
       match yaml_get(doc, "port") {
         Some(v) => assert(yaml_int(v) == Some(80)),
         _ => assert(false)
@@ -331,7 +290,7 @@ test "map with inline comment" {
   }
 }
 
-test "yaml_get finds host" {
+test "yaml_get on map" {
   let input = "host: localhost\nport: 5432"
   match yaml_parse(input) {
     Ok(doc) => {
@@ -339,28 +298,12 @@ test "yaml_get finds host" {
         Some(v) => assert(yaml_str(v) == Some("localhost")),
         _ => assert(false)
       }
-    },
-    _ => assert(false)
-  }
-}
-
-test "yaml_get finds port" {
-  let input = "host: localhost\nport: 5432"
-  match yaml_parse(input) {
-    Ok(doc) => {
       match yaml_get(doc, "port") {
         Some(v) => assert(yaml_int(v) == Some(5432)),
         _ => assert(false)
       }
+      assert(is_none(yaml_get(doc, "missing")))
     },
-    _ => assert(false)
-  }
-}
-
-test "yaml_get returns none for missing" {
-  let input = "host: localhost\nport: 5432"
-  match yaml_parse(input) {
-    Ok(doc) => assert(is_none(yaml_get(doc, "missing"))),
     _ => assert(false)
   }
 }
