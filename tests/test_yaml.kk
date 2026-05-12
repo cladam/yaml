@@ -80,6 +80,18 @@ pub fun hc_is_digit_str(c : string) : bool
 pub fun hc_all_digits(s : string) : bool
   ((s.count > 0) && all(s.split(""), fn(c) hc_is_digit_str(c)))
 
+pub fun hc_is_float_str(s : string) : bool
+  val body : string = if s.starts-with("-").is-just then
+    s.list.drop(1).string
+  else
+    s
+  val parts : list<string> = body.split(".")
+  match parts
+    Cons(a, Cons(b, Nil)) ->
+      (hc_all_digits(a) && hc_all_digits(b))
+    _ ->
+      False
+
 pub fun hc_parse_scalar(s : string) : yaml
   val trimmed : string = s.trim
   if ((trimmed.starts-with("\"").is-just && trimmed.ends-with("\"").is-just) && (trimmed.count >= 2)) then
@@ -102,7 +114,14 @@ pub fun hc_parse_scalar(s : string) : yaml
             Nothing ->
               YStr(trimmed)
         else
-          YStr(trimmed)
+          if hc_is_float_str(trimmed) then
+            match trimmed.parse-float64
+              Just(f) ->
+                YFloat(f)
+              Nothing ->
+                YStr(trimmed)
+          else
+            YStr(trimmed)
 
 pub fun hc_yaml_parse(input : string) : either<string, yaml>
   val trimmed : string = input.trim
@@ -205,9 +224,46 @@ fun hctest13()
     _ ->
       (if !(False) then throw("assertion failed") else ())
 
+fun hctest14()
+  match hc_yaml_parse("3.14")
+    Right(YFloat(f)) ->
+      (if !((f.show-fixed(2) == "3.14")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest15()
+  match hc_yaml_parse("-0.5")
+    Right(YFloat(f)) ->
+      (if !((f.show-fixed(1) == "-0.5")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest16()
+  match hc_yaml_parse("0.0")
+    Right(YFloat(f)) ->
+      (if !((f.show-fixed(1) == "0.0")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest17()
+  match hc_yaml_parse("5432.01")
+    Right(YFloat(f)) ->
+      (if !((f.show-fixed(2) == "5432.01")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest18()
+  match hc_yaml_parse("3.14")
+    Right(YInt(_)) ->
+      (if !(False) then throw("assertion failed") else ())
+    Right(YFloat(_)) ->
+      (if !(True) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
 fun main()
   println("")
-  println("running 14 test(s)...")
+  println("running 19 test(s)...")
   println("")
   val r0 = match try({ hctest0() })
     Ok(_) ->
@@ -321,9 +377,49 @@ fun main()
       println("  \x1b[31m\u2717\x1b[0m " ++ "empty single-quoted string")
       println("    " ++ e.message)
       False
+  val r14 = match try({ hctest14() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "parse positive float")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "parse positive float")
+      println("    " ++ e.message)
+      False
+  val r15 = match try({ hctest15() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "parse negative float")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "parse negative float")
+      println("    " ++ e.message)
+      False
+  val r16 = match try({ hctest16() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "parse float zero")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "parse float zero")
+      println("    " ++ e.message)
+      False
+  val r17 = match try({ hctest17() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "parse large float")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "parse large float")
+      println("    " ++ e.message)
+      False
+  val r18 = match try({ hctest18() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "float not confused with int")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "float not confused with int")
+      println("    " ++ e.message)
+      False
   println("")
-  val passed = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13].filter(fn(x) x).length
-  val failed = 14 - passed
+  val passed = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18].filter(fn(x) x).length
+  val failed = 19 - passed
   if failed == 0 then
     println("\x1b[32m" ++ passed.show ++ " test(s) passed\x1b[0m")
   else

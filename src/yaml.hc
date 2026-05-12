@@ -58,6 +58,16 @@ pub fun is_digit_str(c: string) : bool =>
 pub fun all_digits(s: string) : bool =>
   str_length(s) > 0 && all(s.split(""), (c) => is_digit_str(c))
 
+pub fun is_float_str(s: string) : bool {
+  // Strip optional leading minus
+  let body = if starts_with(s, "-") { s[1:] } else { s }
+  let parts = split(body, ".")
+  match parts {
+    [a, b] => all_digits(a) && all_digits(b),
+    _ => false
+  }
+}
+
 pub fun parse_scalar(s: string) : Yaml {
   let trimmed = trim(s)
 
@@ -78,6 +88,13 @@ pub fun parse_scalar(s: string) : Yaml {
   } else if all_digits(trimmed) {
     match parse_int(trimmed) {
       Some(n) => YInt(n),
+      None => YStr(trimmed)
+    }
+  }
+  // Float: digits.digits with optional leading minus
+  else if is_float_str(trimmed) {
+    match parse_float(trimmed) {
+      Some(f) => YFloat(f),
       None => YStr(trimmed)
     }
   } else {

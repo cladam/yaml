@@ -77,6 +77,18 @@ pub fun hc_is_digit_str(c : string) : bool
 pub fun hc_all_digits(s : string) : bool
   ((s.count > 0) && all(s.split(""), fn(c) hc_is_digit_str(c)))
 
+pub fun hc_is_float_str(s : string) : bool
+  val body : string = if s.starts-with("-").is-just then
+    s.list.drop(1).string
+  else
+    s
+  val parts : list<string> = body.split(".")
+  match parts
+    Cons(a, Cons(b, Nil)) ->
+      (hc_all_digits(a) && hc_all_digits(b))
+    _ ->
+      False
+
 pub fun hc_parse_scalar(s : string) : yaml
   val trimmed : string = s.trim
   if ((trimmed.starts-with("\"").is-just && trimmed.ends-with("\"").is-just) && (trimmed.count >= 2)) then
@@ -99,7 +111,14 @@ pub fun hc_parse_scalar(s : string) : yaml
             Nothing ->
               YStr(trimmed)
         else
-          YStr(trimmed)
+          if hc_is_float_str(trimmed) then
+            match trimmed.parse-float64
+              Just(f) ->
+                YFloat(f)
+              Nothing ->
+                YStr(trimmed)
+          else
+            YStr(trimmed)
 
 pub fun hc_yaml_parse(input : string) : either<string, yaml>
   val trimmed : string = input.trim
