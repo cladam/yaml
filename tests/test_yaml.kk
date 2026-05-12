@@ -155,6 +155,36 @@ pub fun hc_strip_comment(line : string) : string
 pub fun hc_prepare_lines(input : string) : list<string>
   filter(map(input.split("\n"), fn(l) hc_strip_comment(l)), fn(l) (l.trim.count > 0))
 
+pub fun hc_is_list_line(line : string) : bool
+  line.trim-left.starts-with("- ").is-just
+
+pub fun hc_list_item_value(line : string) : string
+  line.trim-left.list.drop(2).string.trim
+
+pub fun hc_parse_list_nested_map(line : string, blk : blockresult, base_indent : int) : div list<yaml>
+  ([hc_parse_lines(([line.trim-left.list.drop(2).string] ++ blk.collected))] ++ hc_parse_list_entries(blk.remaining, base_indent))
+
+pub fun hc_parse_list_nested_block(blk : blockresult, base_indent : int) : div list<yaml>
+  ([hc_parse_lines(blk.collected)] ++ hc_parse_list_entries(blk.remaining, base_indent))
+
+pub fun hc_parse_list_entries(remaining : list<string>, base_indent : int) : div list<yaml>
+  match remaining
+    Nil ->
+      []
+    Cons(line, rest) ->
+      if ((hc_indent_of(line) == base_indent) && hc_is_list_line(line)) then
+        val val_str : string = hc_list_item_value(line)
+        val blk : blockresult = hc_collect_block(rest, base_indent)
+        if ((list/length(blk.collected) > 0) && (val_str.count > 0)) then
+          hc_parse_list_nested_map(line, blk, base_indent)
+        else
+          if (list/length(blk.collected) > 0) then
+            hc_parse_list_nested_block(blk, base_indent)
+          else
+            ([hc_parse_scalar(val_str)] ++ hc_parse_list_entries(rest, base_indent))
+      else
+        hc_parse_list_entries(rest, base_indent)
+
 pub fun hc_is_map_line(line : string) : bool
   val trimmed : string = line.trim-left
   if trimmed.starts-with("- ").is-just then
@@ -218,15 +248,21 @@ pub fun hc_parse_lines(all_lines : list<string>) : div yaml
     Nil ->
       YNull
     Cons(single, Nil) ->
-      if hc_is_map_line(single) then
-        YMap([(hc_kv_key(single), hc_parse_scalar(hc_kv_val(single)))])
+      if hc_is_list_line(single) then
+        YList([hc_parse_scalar(hc_list_item_value(single))])
       else
-        hc_parse_scalar(single)
+        if hc_is_map_line(single) then
+          YMap([(hc_kv_key(single), hc_parse_scalar(hc_kv_val(single)))])
+        else
+          hc_parse_scalar(single)
     Cons(first, _) ->
-      if hc_is_map_line(first) then
-        YMap(hc_parse_map_entries(all_lines, hc_indent_of(first)))
+      if hc_is_list_line(first) then
+        YList(hc_parse_list_entries(all_lines, hc_indent_of(first)))
       else
-        hc_parse_scalar(first)
+        if hc_is_map_line(first) then
+          YMap(hc_parse_map_entries(all_lines, hc_indent_of(first)))
+        else
+          hc_parse_scalar(first)
 
 pub fun hc_yaml_parse(input : string) : div either<string, yaml>
   val trimmed : string = input.trim
@@ -535,9 +571,99 @@ fun hctest33()
     _ ->
       (if !(False) then throw("assertion failed") else ())
 
+fun hctest34()
+  val input : string = "- apple\n- banana\n- cherry"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_list(doc)
+        Just(items) ->
+          (if !((list/length(items) == 3)) then throw("assertion failed") else ())
+          (if !((hc_yaml_str(items[0].unjust) == Just("apple"))) then throw("assertion failed") else ())
+          (if !((hc_yaml_str(items[1].unjust) == Just("banana"))) then throw("assertion failed") else ())
+          (if !((hc_yaml_str(items[2].unjust) == Just("cherry"))) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest35()
+  val input : string = "- 1\n- 2\n- 3"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_list(doc)
+        Just(items) ->
+          (if !((list/length(items) == 3)) then throw("assertion failed") else ())
+          (if !((hc_yaml_int(items[0].unjust) == Just(1))) then throw("assertion failed") else ())
+          (if !((hc_yaml_int(items[1].unjust) == Just(2))) then throw("assertion failed") else ())
+          (if !((hc_yaml_int(items[2].unjust) == Just(3))) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest36()
+  val input : string = "- hello\n- 42\n- true\n- null"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_list(doc)
+        Just(items) ->
+          (if !((list/length(items) == 4)) then throw("assertion failed") else ())
+          (if !((hc_yaml_str(items[0].unjust) == Just("hello"))) then throw("assertion failed") else ())
+          (if !((hc_yaml_int(items[1].unjust) == Just(42))) then throw("assertion failed") else ())
+          (if !((hc_yaml_bool(items[2].unjust) == Just(True))) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest37()
+  val input : string = "- only"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_list(doc)
+        Just(items) ->
+          (if !((list/length(items) == 1)) then throw("assertion failed") else ())
+          (if !((hc_yaml_str(items[0].unjust) == Just("only"))) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest38()
+  val input : string = "# fruits\n- apple\n# more\n- banana"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_list(doc)
+        Just(items) ->
+          (if !((list/length(items) == 2)) then throw("assertion failed") else ())
+          (if !((hc_yaml_str(items[0].unjust) == Just("apple"))) then throw("assertion failed") else ())
+          (if !((hc_yaml_str(items[1].unjust) == Just("banana"))) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest39()
+  val input : string = "fruits:\n  - apple\n  - banana"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_get(doc, "fruits")
+        Just(v) ->
+          match hc_yaml_list(v)
+            Just(items) ->
+              (if !((list/length(items) == 2)) then throw("assertion failed") else ())
+              (if !((hc_yaml_str(items[0].unjust) == Just("apple"))) then throw("assertion failed") else ())
+              (if !((hc_yaml_str(items[1].unjust) == Just("banana"))) then throw("assertion failed") else ())
+            _ ->
+              (if !(False) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
 fun main()
   println("")
-  println("running 34 test(s)...")
+  println("running 40 test(s)...")
   println("")
   val r0 = match try({ hctest0() })
     Ok(_) ->
@@ -811,9 +937,57 @@ fun main()
       println("  \x1b[31m\u2717\x1b[0m " ++ "yaml_get on map")
       println("    " ++ e.message)
       False
+  val r34 = match try({ hctest34() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "simple list of strings")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "simple list of strings")
+      println("    " ++ e.message)
+      False
+  val r35 = match try({ hctest35() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "list of integers")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "list of integers")
+      println("    " ++ e.message)
+      False
+  val r36 = match try({ hctest36() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "list of mixed scalars")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "list of mixed scalars")
+      println("    " ++ e.message)
+      False
+  val r37 = match try({ hctest37() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "single item list")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "single item list")
+      println("    " ++ e.message)
+      False
+  val r38 = match try({ hctest38() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "list with comments")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "list with comments")
+      println("    " ++ e.message)
+      False
+  val r39 = match try({ hctest39() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "map with list value")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "map with list value")
+      println("    " ++ e.message)
+      False
   println("")
-  val passed = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33].filter(fn(x) x).length
-  val failed = 34 - passed
+  val passed = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39].filter(fn(x) x).length
+  val failed = 40 - passed
   if failed == 0 then
     println("\x1b[32m" ++ passed.show ++ " test(s) passed\x1b[0m")
   else

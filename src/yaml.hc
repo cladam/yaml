@@ -130,6 +130,39 @@ pub fun prepare_lines(input: string) : list<string> {
     |> filter((l) => str_length(trim(l)) > 0)
 }
 
+pub fun is_list_line(line: string) : bool =>
+  starts_with(trim_start(line), "- ")
+
+pub fun list_item_value(line: string) : string =>
+  trim(trim_start(line)[2:])
+
+pub fun parse_list_nested_map(line: string, blk: BlockResult, base_indent: int) : list<Yaml> =>
+  [parse_lines([trim_start(line)[2:]] + blk.collected)] + parse_list_entries(blk.remaining, base_indent)
+
+pub fun parse_list_nested_block(blk: BlockResult, base_indent: int) : list<Yaml> =>
+  [parse_lines(blk.collected)] + parse_list_entries(blk.remaining, base_indent)
+
+pub fun parse_list_entries(remaining: list<string>, base_indent: int) : list<Yaml> {
+  match remaining {
+    [] => [],
+    [line, ..rest] => {
+      if indent_of(line) == base_indent && is_list_line(line) {
+        let val_str = list_item_value(line)
+        let blk = collect_block(rest, base_indent)
+        if length(blk.collected) > 0 && str_length(val_str) > 0 {
+          parse_list_nested_map(line, blk, base_indent)
+        } else if length(blk.collected) > 0 {
+          parse_list_nested_block(blk, base_indent)
+        } else {
+          [parse_scalar(val_str)] + parse_list_entries(rest, base_indent)
+        }
+      } else {
+        parse_list_entries(rest, base_indent)
+      }
+    }
+  }
+}
+
 pub fun is_map_line(line: string) : bool {
   let trimmed = trim_start(line)
   // Must contain ": " or end with ":" — but not start with "- "
@@ -207,14 +240,18 @@ pub fun parse_lines(all_lines: list<string>) : Yaml {
   match all_lines {
     [] => YNull,
     [single] => {
-      if is_map_line(single) {
+      if is_list_line(single) {
+        YList([parse_scalar(list_item_value(single))])
+      } else if is_map_line(single) {
         YMap([(kv_key(single), parse_scalar(kv_val(single)))])
       } else {
         parse_scalar(single)
       }
     },
     [first, ..] => {
-      if is_map_line(first) {
+      if is_list_line(first) {
+        YList(parse_list_entries(all_lines, indent_of(first)))
+      } else if is_map_line(first) {
         YMap(parse_map_entries(all_lines, indent_of(first)))
       } else {
         parse_scalar(first)

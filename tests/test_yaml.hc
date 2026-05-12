@@ -307,3 +307,114 @@ test "yaml_get on map" {
     _ => assert(false)
   }
 }
+
+// --- List tests ---
+
+test "simple list of strings" {
+  let input = "- apple\n- banana\n- cherry"
+  match yaml_parse(input) {
+    Ok(doc) => {
+      match yaml_list(doc) {
+        Some(items) => {
+          assert(length(items) == 3)
+          assert(yaml_str(items[0]) == Some("apple"))
+          assert(yaml_str(items[1]) == Some("banana"))
+          assert(yaml_str(items[2]) == Some("cherry"))
+        },
+        _ => assert(false)
+      }
+    },
+    _ => assert(false)
+  }
+}
+
+test "list of integers" {
+  let input = "- 1\n- 2\n- 3"
+  match yaml_parse(input) {
+    Ok(doc) => {
+      match yaml_list(doc) {
+        Some(items) => {
+          assert(length(items) == 3)
+          assert(yaml_int(items[0]) == Some(1))
+          assert(yaml_int(items[1]) == Some(2))
+          assert(yaml_int(items[2]) == Some(3))
+        },
+        _ => assert(false)
+      }
+    },
+    _ => assert(false)
+  }
+}
+
+test "list of mixed scalars" {
+  let input = "- hello\n- 42\n- true\n- null"
+  match yaml_parse(input) {
+    Ok(doc) => {
+      match yaml_list(doc) {
+        Some(items) => {
+          assert(length(items) == 4)
+          assert(yaml_str(items[0]) == Some("hello"))
+          assert(yaml_int(items[1]) == Some(42))
+          assert(yaml_bool(items[2]) == Some(true))
+        },
+        _ => assert(false)
+      }
+    },
+    _ => assert(false)
+  }
+}
+
+test "single item list" {
+  let input = "- only"
+  match yaml_parse(input) {
+    Ok(doc) => {
+      match yaml_list(doc) {
+        Some(items) => {
+          assert(length(items) == 1)
+          assert(yaml_str(items[0]) == Some("only"))
+        },
+        _ => assert(false)
+      }
+    },
+    _ => assert(false)
+  }
+}
+
+test "list with comments" {
+  let input = "# fruits\n- apple\n# more\n- banana"
+  match yaml_parse(input) {
+    Ok(doc) => {
+      match yaml_list(doc) {
+        Some(items) => {
+          assert(length(items) == 2)
+          assert(yaml_str(items[0]) == Some("apple"))
+          assert(yaml_str(items[1]) == Some("banana"))
+        },
+        _ => assert(false)
+      }
+    },
+    _ => assert(false)
+  }
+}
+
+test "map with list value" {
+  let input = "fruits:\n  - apple\n  - banana"
+  match yaml_parse(input) {
+    Ok(doc) => {
+      match yaml_get(doc, "fruits") {
+        Some(v) => {
+          match yaml_list(v) {
+            Some(items) => {
+              assert(length(items) == 2)
+              assert(yaml_str(items[0]) == Some("apple"))
+              assert(yaml_str(items[1]) == Some("banana"))
+            },
+            _ => assert(false)
+          }
+        },
+        _ => assert(false)
+      }
+    },
+    _ => assert(false)
+  }
+}
