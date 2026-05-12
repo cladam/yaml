@@ -25,6 +25,13 @@ fun yaml/show(v : yaml) : div string
     YList(items) -> "YList(" ++ items.show ++ ")"
     YMap(entries) -> "YMap(" ++ entries.show ++ ")"
 
+struct blockresult
+  collected : list<string>
+  remaining : list<string>
+
+fun blockresult/show(p : blockresult) : string
+  "BlockResult(" ++ "collected: " ++ p.collected.show ++ ", " ++ "remaining: " ++ p.remaining.show ++ ")"
+
 pub fun hc_yaml_get(y : yaml, key : string) : maybe<yaml>
   match y
     YMap(entries) ->
@@ -132,12 +139,105 @@ pub fun hc_parse_scalar(s : string) : yaml
                 else
                   YStr(trimmed)
 
-pub fun hc_yaml_parse(input : string) : either<string, yaml>
+pub fun hc_indent_of(line : string) : int
+  (line.count - line.trim-left.count)
+
+pub fun hc_strip_comment(line : string) : string
+  match (match line.find(" #") { Just(hc__ss) -> Just(hc__ss.before.count); Nothing -> Nothing })
+    Just(i) ->
+      line.list.take(i).string
+    Nothing ->
+      if line.trim-left.starts-with("#").is-just then
+        ""
+      else
+        line
+
+pub fun hc_prepare_lines(input : string) : list<string>
+  filter(map(input.split("\n"), fn(l) hc_strip_comment(l)), fn(l) (l.trim.count > 0))
+
+pub fun hc_is_map_line(line : string) : bool
+  val trimmed : string = line.trim-left
+  if trimmed.starts-with("- ").is-just then
+    False
+  else
+    match (match trimmed.find(": ") { Just(hc__ss) -> Just(hc__ss.before.count); Nothing -> Nothing })
+      Just(_) ->
+        True
+      Nothing ->
+        trimmed.ends-with(":").is-just
+
+pub fun hc_split_kv(line : string) : (string, string)
+  val trimmed : string = line.trim-left
+  match (match trimmed.find(": ") { Just(hc__ss) -> Just(hc__ss.before.count); Nothing -> Nothing })
+    Just(i) ->
+      (trimmed.list.take(i).string, trimmed.list.drop((i + 2)).string.trim)
+    Nothing ->
+      if trimmed.ends-with(":").is-just then
+        (trimmed.list.take((trimmed.count - 1)).string, "")
+      else
+        (trimmed, "")
+
+pub fun hc_kv_key(line : string) : string
+  hc_split_kv(line).fst
+
+pub fun hc_kv_val(line : string) : string
+  hc_split_kv(line).snd
+
+pub fun hc_collect_block(lines : list<string>, base_indent : int) : div blockresult
+  match lines
+    Nil ->
+      BlockResult([], [])
+    Cons(line, rest) ->
+      if (hc_indent_of(line) > base_indent) then
+        val inner : blockresult = hc_collect_block(rest, base_indent)
+        BlockResult(([line] ++ inner.collected), inner.remaining)
+      else
+        BlockResult([], lines)
+
+pub fun hc_parse_inline_entry(key : string, val_str : string, rest : list<string>, base_indent : int) : div list<(string, yaml)>
+  ([(key, hc_parse_scalar(val_str))] ++ hc_parse_map_entries(rest, base_indent))
+
+pub fun hc_parse_nested_entry(key : string, blk : blockresult, base_indent : int) : div list<(string, yaml)>
+  ([(key, hc_parse_lines(blk.collected))] ++ hc_parse_map_entries(blk.remaining, base_indent))
+
+pub fun hc_parse_map_entries(remaining : list<string>, base_indent : int) : div list<(string, yaml)>
+  match remaining
+    Nil ->
+      []
+    Cons(line, rest) ->
+      if ((hc_indent_of(line) == base_indent) && hc_is_map_line(line)) then
+        if (hc_kv_val(line).count > 0) then
+          hc_parse_inline_entry(hc_kv_key(line), hc_kv_val(line), rest, base_indent)
+        else
+          hc_parse_nested_entry(hc_kv_key(line), hc_collect_block(rest, base_indent), base_indent)
+      else
+        hc_parse_map_entries(rest, base_indent)
+
+pub fun hc_parse_lines(all_lines : list<string>) : div yaml
+  match all_lines
+    Nil ->
+      YNull
+    Cons(single, Nil) ->
+      if hc_is_map_line(single) then
+        YMap([(hc_kv_key(single), hc_parse_scalar(hc_kv_val(single)))])
+      else
+        hc_parse_scalar(single)
+    Cons(first, _) ->
+      if hc_is_map_line(first) then
+        YMap(hc_parse_map_entries(all_lines, hc_indent_of(first)))
+      else
+        hc_parse_scalar(first)
+
+pub fun hc_yaml_parse(input : string) : div either<string, yaml>
   val trimmed : string = input.trim
   if (trimmed.count == 0) then
     Left("empty input")
   else
-    Right(hc_parse_scalar(trimmed))
+    val ls : list<string> = hc_prepare_lines(input)
+    if (list/length(ls) == 0) then
+      Left("empty input")
+    else
+      Right(hc_parse_lines(ls))
 
 fun hctest0()
   match hc_yaml_parse("42")
@@ -333,9 +433,157 @@ fun hctest27()
     _ ->
       (if !(False) then throw("assertion failed") else ())
 
+fun hctest28()
+  val input : string = "name: my-project\nversion: 1"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_get(doc, "name")
+        Just(v) ->
+          (if !((hc_yaml_str(v) == Just("my-project"))) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest29()
+  val input : string = "name: my-project\nversion: 1"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_get(doc, "version")
+        Just(v) ->
+          (if !((hc_yaml_int(v) == Just(1))) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest30()
+  val input : string = "enabled: true\ndata: null"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_get(doc, "enabled")
+        Just(v) ->
+          (if !((hc_yaml_bool(v) == Just(True))) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest31()
+  val input : string = "enabled: true\ndata: null"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_get(doc, "data")
+        Just(YNull) ->
+          (if !(True) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest32()
+  val input : string = "database:\n  host: localhost\n  port: 5432"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_get(doc, "database")
+        Just(inner) ->
+          match hc_yaml_get(inner, "host")
+            Just(v) ->
+              (if !((hc_yaml_str(v) == Just("localhost"))) then throw("assertion failed") else ())
+            _ ->
+              (if !(False) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest33()
+  val input : string = "database:\n  host: localhost\n  port: 5432"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_get(doc, "database")
+        Just(inner) ->
+          match hc_yaml_get(inner, "port")
+            Just(v) ->
+              (if !((hc_yaml_int(v) == Just(5432))) then throw("assertion failed") else ())
+            _ ->
+              (if !(False) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest34()
+  val input : string = "# this is a comment\nname: test\n# another comment\nport: 80"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_get(doc, "name")
+        Just(v) ->
+          (if !((hc_yaml_str(v) == Just("test"))) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest35()
+  val input : string = "# this is a comment\nname: test\n# another comment\nport: 80"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_get(doc, "port")
+        Just(v) ->
+          (if !((hc_yaml_int(v) == Just(80))) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest36()
+  val input : string = "name: test # inline comment\nport: 80"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_get(doc, "name")
+        Just(YStr(s)) ->
+          (if !((s == "test")) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest37()
+  val input : string = "host: localhost\nport: 5432"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_get(doc, "host")
+        Just(v) ->
+          (if !((hc_yaml_str(v) == Just("localhost"))) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest38()
+  val input : string = "host: localhost\nport: 5432"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      match hc_yaml_get(doc, "port")
+        Just(v) ->
+          (if !((hc_yaml_int(v) == Just(5432))) then throw("assertion failed") else ())
+        _ ->
+          (if !(False) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest39()
+  val input : string = "host: localhost\nport: 5432"
+  match hc_yaml_parse(input)
+    Right(doc) ->
+      (if !(hc_yaml_get(doc, "missing").is-nothing) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
 fun main()
   println("")
-  println("running 28 test(s)...")
+  println("running 40 test(s)...")
   println("")
   val r0 = match try({ hctest0() })
     Ok(_) ->
@@ -561,9 +809,105 @@ fun main()
       println("  \x1b[31m\u2717\x1b[0m " ++ "quoted null is string")
       println("    " ++ e.message)
       False
+  val r28 = match try({ hctest28() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "simple map name key")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "simple map name key")
+      println("    " ++ e.message)
+      False
+  val r29 = match try({ hctest29() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "simple map version key")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "simple map version key")
+      println("    " ++ e.message)
+      False
+  val r30 = match try({ hctest30() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "map with bool value")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "map with bool value")
+      println("    " ++ e.message)
+      False
+  val r31 = match try({ hctest31() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "map with null value")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "map with null value")
+      println("    " ++ e.message)
+      False
+  val r32 = match try({ hctest32() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "nested map host")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "nested map host")
+      println("    " ++ e.message)
+      False
+  val r33 = match try({ hctest33() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "nested map port")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "nested map port")
+      println("    " ++ e.message)
+      False
+  val r34 = match try({ hctest34() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "map with comments name")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "map with comments name")
+      println("    " ++ e.message)
+      False
+  val r35 = match try({ hctest35() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "map with comments port")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "map with comments port")
+      println("    " ++ e.message)
+      False
+  val r36 = match try({ hctest36() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "map with inline comment")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "map with inline comment")
+      println("    " ++ e.message)
+      False
+  val r37 = match try({ hctest37() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "yaml_get finds host")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "yaml_get finds host")
+      println("    " ++ e.message)
+      False
+  val r38 = match try({ hctest38() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "yaml_get finds port")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "yaml_get finds port")
+      println("    " ++ e.message)
+      False
+  val r39 = match try({ hctest39() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "yaml_get returns none for missing")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "yaml_get returns none for missing")
+      println("    " ++ e.message)
+      False
   println("")
-  val passed = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27].filter(fn(x) x).length
-  val failed = 28 - passed
+  val passed = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39].filter(fn(x) x).length
+  val failed = 40 - passed
   if failed == 0 then
     println("\x1b[32m" ++ passed.show ++ " test(s) passed\x1b[0m")
   else

@@ -112,6 +112,117 @@ pub fun parse_scalar(s: string) : Yaml {
   }
 }
 
+// --- Line helpers ---
+
+pub fun indent_of(line: string) : int =>
+  str_length(line) - str_length(trim_start(line))
+
+pub fun strip_comment(line: string) : string {
+  match index_of(line, " #") {
+    Some(i) => line[:i],
+    None => if starts_with(trim_start(line), "#") { "" } else { line }
+  }
+}
+
+pub fun prepare_lines(input: string) : list<string> {
+  split(input, "\n")
+    |> map((l) => strip_comment(l))
+    |> filter((l) => str_length(trim(l)) > 0)
+}
+
+pub fun is_map_line(line: string) : bool {
+  let trimmed = trim_start(line)
+  // Must contain ": " or end with ":" — but not start with "- "
+  if starts_with(trimmed, "- ") { false }
+  else {
+    match index_of(trimmed, ": ") {
+      Some(_) => true,
+      None => ends_with(trimmed, ":")
+    }
+  }
+}
+
+pub fun split_kv(line: string) : (string, string) {
+  let trimmed = trim_start(line)
+  match index_of(trimmed, ": ") {
+    Some(i) => (trimmed[:i], trim(trimmed[i + 2:])),
+    None => {
+      // key with no inline value (nested block follows)
+      if ends_with(trimmed, ":") {
+        (trimmed[:str_length(trimmed) - 1], "")
+      } else {
+        (trimmed, "")
+      }
+    }
+  }
+}
+
+pub fun kv_key(line: string) : string => split_kv(line).0
+pub fun kv_val(line: string) : string => split_kv(line).1
+
+struct BlockResult {
+  collected: list<string>,
+  remaining: list<string>
+}
+
+// Collect lines indented deeper than base_indent from the front of remaining lines
+pub fun collect_block(lines: list<string>, base_indent: int) : BlockResult {
+  match lines {
+    [] => BlockResult { collected: [], remaining: [] },
+    [line, ..rest] => {
+      if indent_of(line) > base_indent {
+        let inner = collect_block(rest, base_indent)
+        BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
+      } else {
+        BlockResult { collected: [], remaining: lines }
+      }
+    }
+  }
+}
+
+pub fun parse_inline_entry(key: string, val_str: string, rest: list<string>, base_indent: int) : list<(string, Yaml)> =>
+  [(key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
+
+pub fun parse_nested_entry(key: string, blk: BlockResult, base_indent: int) : list<(string, Yaml)> =>
+  [(key, parse_lines(blk.collected))] + parse_map_entries(blk.remaining, base_indent)
+
+pub fun parse_map_entries(remaining: list<string>, base_indent: int) : list<(string, Yaml)> {
+  match remaining {
+    [] => [],
+    [line, ..rest] => {
+      if indent_of(line) == base_indent && is_map_line(line) {
+        if str_length(kv_val(line)) > 0 {
+          parse_inline_entry(kv_key(line), kv_val(line), rest, base_indent)
+        } else {
+          parse_nested_entry(kv_key(line), collect_block(rest, base_indent), base_indent)
+        }
+      } else {
+        parse_map_entries(rest, base_indent)
+      }
+    }
+  }
+}
+
+pub fun parse_lines(all_lines: list<string>) : Yaml {
+  match all_lines {
+    [] => YNull,
+    [single] => {
+      if is_map_line(single) {
+        YMap([(kv_key(single), parse_scalar(kv_val(single)))])
+      } else {
+        parse_scalar(single)
+      }
+    },
+    [first, ..] => {
+      if is_map_line(first) {
+        YMap(parse_map_entries(all_lines, indent_of(first)))
+      } else {
+        parse_scalar(first)
+      }
+    }
+  }
+}
+
 // --- Public API ---
 
 pub fun yaml_parse(input: string) : result<Yaml, string> {
@@ -119,6 +230,11 @@ pub fun yaml_parse(input: string) : result<Yaml, string> {
   if str_length(trimmed) == 0 {
     Err("empty input")
   } else {
-    Ok(parse_scalar(trimmed))
+    let ls = prepare_lines(input)
+    if length(ls) == 0 {
+      Err("empty input")
+    } else {
+      Ok(parse_lines(ls))
+    }
   }
 }
