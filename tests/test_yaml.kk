@@ -15,7 +15,7 @@ type yaml
   YList(items : list<yaml>)
   YMap(entries : list<(string, yaml)>)
 
-fun yaml/show(v : yaml) : string
+fun yaml/show(v : yaml) : div string
   match v
     YStr(value) -> "YStr(" ++ value ++ ")"
     YInt(value) -> "YInt(" ++ value.show ++ ")"
@@ -28,7 +28,7 @@ fun yaml/show(v : yaml) : string
 pub fun hc_yaml_get(y : yaml, key : string) : maybe<yaml>
   match y
     YMap(entries) ->
-      (match find(entries, fn(e) (e.fst == key)) { Just(hc__v) -> Just((fn(e) e.snd)(hc__v)); Nothing -> Nothing })
+      (match find(entries, fn(e) (e.fst == key)) { Just(e) -> Just(e.snd); Nothing -> Nothing })
     _ ->
       Nothing
 
