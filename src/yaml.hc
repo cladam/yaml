@@ -11,18 +11,12 @@ type Yaml {
   YMap(entries: list<(string, Yaml)>)
 }
 
-// --- Helpers ---
-
-pub fun entry_key(entry: (string, Yaml)) : string => entry.0
-
-pub fun entry_val(entry: (string, Yaml)) : Yaml => entry.1
-
 // --- Accessors ---
 
 pub fun yaml_get(y: Yaml, key: string) : maybe<Yaml> => match y {
   YMap(entries) => entries
-    |> find((e) => entry_key(e) == key)
-    |> map_maybe((e) => entry_val(e)),
+    |> find((e) => e.0 == key)
+    |> map_maybe((e) => e.1),
   _ => None
 }
 
