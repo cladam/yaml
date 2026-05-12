@@ -61,8 +61,16 @@ pub fun all_digits(s: string) : bool =>
 pub fun parse_scalar(s: string) : Yaml {
   let trimmed = trim(s)
 
+  // Double-quoted string
+  if starts_with(trimmed, "\"") && ends_with(trimmed, "\"") && str_length(trimmed) >= 2 {
+    YStr(trimmed[1:str_length(trimmed) - 1])
+  }
+  // Single-quoted string
+  else if starts_with(trimmed, "'") && ends_with(trimmed, "'") && str_length(trimmed) >= 2 {
+    YStr(trimmed[1:str_length(trimmed) - 1])
+  }
   // Integer: optional minus, then digits
-  if starts_with(trimmed, "-") && all_digits(trimmed[1:]) {
+  else if starts_with(trimmed, "-") && all_digits(trimmed[1:]) {
     match parse_int(trimmed) {
       Some(n) => YInt(n),
       None => YStr(trimmed)

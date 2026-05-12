@@ -82,21 +82,27 @@ pub fun hc_all_digits(s : string) : bool
 
 pub fun hc_parse_scalar(s : string) : yaml
   val trimmed : string = s.trim
-  if (trimmed.starts-with("-").is-just && hc_all_digits(trimmed.list.drop(1).string)) then
-    match trimmed.parse-int
-      Just(n) ->
-        YInt(n)
-      Nothing ->
-        YStr(trimmed)
+  if ((trimmed.starts-with("\"").is-just && trimmed.ends-with("\"").is-just) && (trimmed.count >= 2)) then
+    YStr(trimmed.list.drop(1).take(((trimmed.count - 1)) - (1)).string)
   else
-    if hc_all_digits(trimmed) then
-      match trimmed.parse-int
-        Just(n) ->
-          YInt(n)
-        Nothing ->
-          YStr(trimmed)
+    if ((trimmed.starts-with("'").is-just && trimmed.ends-with("'").is-just) && (trimmed.count >= 2)) then
+      YStr(trimmed.list.drop(1).take(((trimmed.count - 1)) - (1)).string)
     else
-      YStr(trimmed)
+      if (trimmed.starts-with("-").is-just && hc_all_digits(trimmed.list.drop(1).string)) then
+        match trimmed.parse-int
+          Just(n) ->
+            YInt(n)
+          Nothing ->
+            YStr(trimmed)
+      else
+        if hc_all_digits(trimmed) then
+          match trimmed.parse-int
+            Just(n) ->
+              YInt(n)
+            Nothing ->
+              YStr(trimmed)
+        else
+          YStr(trimmed)
 
 pub fun hc_yaml_parse(input : string) : either<string, yaml>
   val trimmed : string = input.trim
@@ -143,9 +149,65 @@ fun hctest4()
 fun hctest5()
   (if !(hc_yaml_parse("").is-left) then throw("assertion failed") else ())
 
+fun hctest6()
+  match hc_yaml_parse("hello")
+    Right(YStr(s)) ->
+      (if !((s == "hello")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest7()
+  match hc_yaml_parse("hello world")
+    Right(YStr(s)) ->
+      (if !((s == "hello world")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest8()
+  match hc_yaml_parse("\"hello world\"")
+    Right(YStr(s)) ->
+      (if !((s == "hello world")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest9()
+  match hc_yaml_parse("'hello world'")
+    Right(YStr(s)) ->
+      (if !((s == "hello world")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest10()
+  match hc_yaml_parse("\"42\"")
+    Right(YStr(s)) ->
+      (if !((s == "42")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest11()
+  match hc_yaml_parse("'42'")
+    Right(YStr(s)) ->
+      (if !((s == "42")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest12()
+  match hc_yaml_parse("\"\"")
+    Right(YStr(s)) ->
+      (if !((s == "")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest13()
+  match hc_yaml_parse("''")
+    Right(YStr(s)) ->
+      (if !((s == "")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
 fun main()
   println("")
-  println("running 6 test(s)...")
+  println("running 14 test(s)...")
   println("")
   val r0 = match try({ hctest0() })
     Ok(_) ->
@@ -195,9 +257,73 @@ fun main()
       println("  \x1b[31m\u2717\x1b[0m " ++ "empty input returns error")
       println("    " ++ e.message)
       False
+  val r6 = match try({ hctest6() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "bare string")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "bare string")
+      println("    " ++ e.message)
+      False
+  val r7 = match try({ hctest7() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "bare string with spaces")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "bare string with spaces")
+      println("    " ++ e.message)
+      False
+  val r8 = match try({ hctest8() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "double-quoted string")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "double-quoted string")
+      println("    " ++ e.message)
+      False
+  val r9 = match try({ hctest9() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "single-quoted string")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "single-quoted string")
+      println("    " ++ e.message)
+      False
+  val r10 = match try({ hctest10() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "double-quoted preserves number as string")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "double-quoted preserves number as string")
+      println("    " ++ e.message)
+      False
+  val r11 = match try({ hctest11() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "single-quoted preserves number as string")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "single-quoted preserves number as string")
+      println("    " ++ e.message)
+      False
+  val r12 = match try({ hctest12() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "empty double-quoted string")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "empty double-quoted string")
+      println("    " ++ e.message)
+      False
+  val r13 = match try({ hctest13() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "empty single-quoted string")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "empty single-quoted string")
+      println("    " ++ e.message)
+      False
   println("")
-  val passed = [r0, r1, r2, r3, r4, r5].filter(fn(x) x).length
-  val failed = 6 - passed
+  val passed = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13].filter(fn(x) x).length
+  val failed = 14 - passed
   if failed == 0 then
     println("\x1b[32m" ++ passed.show ++ " test(s) passed\x1b[0m")
   else

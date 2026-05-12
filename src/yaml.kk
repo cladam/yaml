@@ -79,21 +79,27 @@ pub fun hc_all_digits(s : string) : bool
 
 pub fun hc_parse_scalar(s : string) : yaml
   val trimmed : string = s.trim
-  if (trimmed.starts-with("-").is-just && hc_all_digits(trimmed.list.drop(1).string)) then
-    match trimmed.parse-int
-      Just(n) ->
-        YInt(n)
-      Nothing ->
-        YStr(trimmed)
+  if ((trimmed.starts-with("\"").is-just && trimmed.ends-with("\"").is-just) && (trimmed.count >= 2)) then
+    YStr(trimmed.list.drop(1).take(((trimmed.count - 1)) - (1)).string)
   else
-    if hc_all_digits(trimmed) then
-      match trimmed.parse-int
-        Just(n) ->
-          YInt(n)
-        Nothing ->
-          YStr(trimmed)
+    if ((trimmed.starts-with("'").is-just && trimmed.ends-with("'").is-just) && (trimmed.count >= 2)) then
+      YStr(trimmed.list.drop(1).take(((trimmed.count - 1)) - (1)).string)
     else
-      YStr(trimmed)
+      if (trimmed.starts-with("-").is-just && hc_all_digits(trimmed.list.drop(1).string)) then
+        match trimmed.parse-int
+          Just(n) ->
+            YInt(n)
+          Nothing ->
+            YStr(trimmed)
+      else
+        if hc_all_digits(trimmed) then
+          match trimmed.parse-int
+            Just(n) ->
+              YInt(n)
+            Nothing ->
+              YStr(trimmed)
+        else
+          YStr(trimmed)
 
 pub fun hc_yaml_parse(input : string) : either<string, yaml>
   val trimmed : string = input.trim
