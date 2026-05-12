@@ -4,11 +4,27 @@
 type Yaml {
   YStr(value: string),
   YInt(value: int),
+  YFloat(value: float),
   YBool(value: bool),
-  YNull
+  YNull,
+  YList(items: list<Yaml>),
+  YMap(entries: list<(string, Yaml)>)
 }
 
+// --- Helpers ---
+
+pub fun entry_key(entry: (string, Yaml)) : string => entry.0
+
+pub fun entry_val(entry: (string, Yaml)) : Yaml => entry.1
+
 // --- Accessors ---
+
+pub fun yaml_get(y: Yaml, key: string) : maybe<Yaml> => match y {
+  YMap(entries) => entries
+    |> find((e) => entry_key(e) == key)
+    |> map_maybe((e) => entry_val(e)),
+  _ => None
+}
 
 pub fun yaml_str(y: Yaml) : maybe<string> => match y {
   YStr(v) => Some(v),
@@ -20,8 +36,23 @@ pub fun yaml_int(y: Yaml) : maybe<int> => match y {
   _ => None
 }
 
+pub fun yaml_float(y: Yaml) : maybe<float> => match y {
+  YFloat(v) => Some(v),
+  _ => None
+}
+
 pub fun yaml_bool(y: Yaml) : maybe<bool> => match y {
   YBool(v) => Some(v),
+  _ => None
+}
+
+pub fun yaml_list(y: Yaml) : maybe<list<Yaml>> => match y {
+  YList(items) => Some(items),
+  _ => None
+}
+
+pub fun yaml_map(y: Yaml) : maybe<list<(string, Yaml)>> => match y {
+  YMap(entries) => Some(entries),
   _ => None
 }
 

@@ -4,15 +4,34 @@ module yaml
 type yaml
   YStr(value : string)
   YInt(value : int)
+  YFloat(value : float64)
   YBool(value : bool)
   YNull
+  YList(items : list<yaml>)
+  YMap(entries : list<(string, yaml)>)
 
 fun yaml/show(v : yaml) : string
   match v
     YStr(value) -> "YStr(" ++ value ++ ")"
     YInt(value) -> "YInt(" ++ value.show ++ ")"
+    YFloat(value) -> "YFloat(" ++ float64/show(value) ++ ")"
     YBool(value) -> "YBool(" ++ value.show ++ ")"
     YNull -> "YNull"
+    YList(items) -> "YList(" ++ items.show ++ ")"
+    YMap(entries) -> "YMap(" ++ entries.show ++ ")"
+
+pub fun hc_entry_key(entry : (string, yaml)) : string
+  entry.fst
+
+pub fun hc_entry_val(entry : (string, yaml)) : yaml
+  entry.snd
+
+pub fun hc_yaml_get(y : yaml, key : string) : maybe<yaml>
+  match y
+    YMap(entries) ->
+      (match find(entries, fn(e) (hc_entry_key(e) == key)) { Just(hc__v) -> Just((fn(e) hc_entry_val(e))(hc__v)); Nothing -> Nothing })
+    _ ->
+      Nothing
 
 pub fun hc_yaml_str(y : yaml) : maybe<string>
   match y
@@ -28,10 +47,31 @@ pub fun hc_yaml_int(y : yaml) : maybe<int>
     _ ->
       Nothing
 
+pub fun hc_yaml_float(y : yaml) : maybe<float64>
+  match y
+    YFloat(v) ->
+      Just(v)
+    _ ->
+      Nothing
+
 pub fun hc_yaml_bool(y : yaml) : maybe<bool>
   match y
     YBool(v) ->
       Just(v)
+    _ ->
+      Nothing
+
+pub fun hc_yaml_list(y : yaml) : maybe<list<yaml>>
+  match y
+    YList(items) ->
+      Just(items)
+    _ ->
+      Nothing
+
+pub fun hc_yaml_map(y : yaml) : maybe<list<(string, yaml)>>
+  match y
+    YMap(entries) ->
+      Just(entries)
     _ ->
       Nothing
 
