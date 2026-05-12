@@ -97,6 +97,16 @@ pub fun parse_scalar(s: string) : Yaml {
       Some(f) => YFloat(f),
       None => YStr(trimmed)
     }
+  }
+  // Booleans
+  else if to_lower(trimmed) == "true" {
+    YBool(true)
+  } else if to_lower(trimmed) == "false" {
+    YBool(false)
+  }
+  // Null
+  else if to_lower(trimmed) == "null" || trimmed == "~" {
+    YNull
   } else {
     YStr(trimmed)
   }

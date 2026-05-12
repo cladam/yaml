@@ -134,3 +134,70 @@ test "float not confused with int" {
     _ => assert(false)
   }
 }
+
+// --- Bool tests ---
+
+test "parse true" {
+  match yaml_parse("true") {
+    Ok(YBool(b)) => assert(b == true),
+    _ => assert(false)
+  }
+}
+
+test "parse false" {
+  match yaml_parse("false") {
+    Ok(YBool(b)) => assert(b == false),
+    _ => assert(false)
+  }
+}
+
+test "parse True" {
+  match yaml_parse("True") {
+    Ok(YBool(b)) => assert(b == true),
+    _ => assert(false)
+  }
+}
+
+test "parse FALSE" {
+  match yaml_parse("FALSE") {
+    Ok(YBool(b)) => assert(b == false),
+    _ => assert(false)
+  }
+}
+
+// --- Null tests ---
+
+test "parse null" {
+  match yaml_parse("null") {
+    Ok(YNull) => assert(true),
+    _ => assert(false)
+  }
+}
+
+test "parse Null" {
+  match yaml_parse("Null") {
+    Ok(YNull) => assert(true),
+    _ => assert(false)
+  }
+}
+
+test "parse tilde as null" {
+  match yaml_parse("~") {
+    Ok(YNull) => assert(true),
+    _ => assert(false)
+  }
+}
+
+test "quoted true is string" {
+  match yaml_parse("\"true\"") {
+    Ok(YStr(s)) => assert(s == "true"),
+    _ => assert(false)
+  }
+}
+
+test "quoted null is string" {
+  match yaml_parse("'null'") {
+    Ok(YStr(s)) => assert(s == "null"),
+    _ => assert(false)
+  }
+}

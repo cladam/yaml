@@ -121,7 +121,16 @@ pub fun hc_parse_scalar(s : string) : yaml
               Nothing ->
                 YStr(trimmed)
           else
-            YStr(trimmed)
+            if (trimmed.to-lower == "true") then
+              YBool(True)
+            else
+              if (trimmed.to-lower == "false") then
+                YBool(False)
+              else
+                if ((trimmed.to-lower == "null") || (trimmed == "~")) then
+                  YNull
+                else
+                  YStr(trimmed)
 
 pub fun hc_yaml_parse(input : string) : either<string, yaml>
   val trimmed : string = input.trim
@@ -261,9 +270,72 @@ fun hctest18()
     _ ->
       (if !(False) then throw("assertion failed") else ())
 
+fun hctest19()
+  match hc_yaml_parse("true")
+    Right(YBool(b)) ->
+      (if !((b == True)) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest20()
+  match hc_yaml_parse("false")
+    Right(YBool(b)) ->
+      (if !((b == False)) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest21()
+  match hc_yaml_parse("True")
+    Right(YBool(b)) ->
+      (if !((b == True)) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest22()
+  match hc_yaml_parse("FALSE")
+    Right(YBool(b)) ->
+      (if !((b == False)) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest23()
+  match hc_yaml_parse("null")
+    Right(YNull) ->
+      (if !(True) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest24()
+  match hc_yaml_parse("Null")
+    Right(YNull) ->
+      (if !(True) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest25()
+  match hc_yaml_parse("~")
+    Right(YNull) ->
+      (if !(True) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest26()
+  match hc_yaml_parse("\"true\"")
+    Right(YStr(s)) ->
+      (if !((s == "true")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
+fun hctest27()
+  match hc_yaml_parse("'null'")
+    Right(YStr(s)) ->
+      (if !((s == "null")) then throw("assertion failed") else ())
+    _ ->
+      (if !(False) then throw("assertion failed") else ())
+
 fun main()
   println("")
-  println("running 19 test(s)...")
+  println("running 28 test(s)...")
   println("")
   val r0 = match try({ hctest0() })
     Ok(_) ->
@@ -417,9 +489,81 @@ fun main()
       println("  \x1b[31m\u2717\x1b[0m " ++ "float not confused with int")
       println("    " ++ e.message)
       False
+  val r19 = match try({ hctest19() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "parse true")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "parse true")
+      println("    " ++ e.message)
+      False
+  val r20 = match try({ hctest20() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "parse false")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "parse false")
+      println("    " ++ e.message)
+      False
+  val r21 = match try({ hctest21() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "parse True")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "parse True")
+      println("    " ++ e.message)
+      False
+  val r22 = match try({ hctest22() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "parse FALSE")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "parse FALSE")
+      println("    " ++ e.message)
+      False
+  val r23 = match try({ hctest23() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "parse null")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "parse null")
+      println("    " ++ e.message)
+      False
+  val r24 = match try({ hctest24() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "parse Null")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "parse Null")
+      println("    " ++ e.message)
+      False
+  val r25 = match try({ hctest25() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "parse tilde as null")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "parse tilde as null")
+      println("    " ++ e.message)
+      False
+  val r26 = match try({ hctest26() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "quoted true is string")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "quoted true is string")
+      println("    " ++ e.message)
+      False
+  val r27 = match try({ hctest27() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "quoted null is string")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "quoted null is string")
+      println("    " ++ e.message)
+      False
   println("")
-  val passed = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18].filter(fn(x) x).length
-  val failed = 19 - passed
+  val passed = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27].filter(fn(x) x).length
+  val failed = 28 - passed
   if failed == 0 then
     println("\x1b[32m" ++ passed.show ++ " test(s) passed\x1b[0m")
   else

@@ -118,7 +118,16 @@ pub fun hc_parse_scalar(s : string) : yaml
               Nothing ->
                 YStr(trimmed)
           else
-            YStr(trimmed)
+            if (trimmed.to-lower == "true") then
+              YBool(True)
+            else
+              if (trimmed.to-lower == "false") then
+                YBool(False)
+              else
+                if ((trimmed.to-lower == "null") || (trimmed == "~")) then
+                  YNull
+                else
+                  YStr(trimmed)
 
 pub fun hc_yaml_parse(input : string) : either<string, yaml>
   val trimmed : string = input.trim
