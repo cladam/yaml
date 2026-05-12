@@ -261,6 +261,48 @@ pub fun hc_parse_lines(all_lines : list<string>) : div yaml
         else
           hc_parse_scalar(first)
 
+pub fun hc_yaml_show(y : yaml) : string
+  match y
+    YStr(v) ->
+      v
+    YInt(v) ->
+      show(v)
+    YFloat(v) ->
+      show(v)
+    YBool(v) ->
+      show(v)
+    YNull ->
+      "null"
+    YList(items) ->
+      (("[list:" ++ show(list/length(items))) ++ "]")
+    YMap(entries) ->
+      (("[map:" ++ show(list/length(entries))) ++ "]")
+
+pub fun hc_make_pad(n : int) : div string
+  if (n <= 0) then
+    ""
+  else
+    ("  " ++ hc_make_pad((n - 1)))
+
+pub fun hc_show_entry_val(v : yaml, indent : int) : div string
+  match v
+    YMap(es) ->
+      ("\n" ++ hc_yaml_pretty(v, (indent + 1)))
+    YList(is) ->
+      ("\n" ++ hc_yaml_pretty(v, (indent + 1)))
+    _ ->
+      hc_yaml_show(v)
+
+pub fun hc_yaml_pretty(y : yaml, indent : int) : div string
+  val pad : string = hc_make_pad(indent)
+  match y
+    YMap(entries) ->
+      map(entries, fn(e) (((pad ++ e.fst) ++ ": ") ++ hc_show_entry_val(e.snd, indent))).join("\n")
+    YList(items) ->
+      map(items, fn(i) ((pad ++ "- ") ++ hc_show_entry_val(i, indent))).join("\n")
+    _ ->
+      (pad ++ hc_yaml_show(y))
+
 pub fun hc_yaml_parse(input : string) : div either<string, yaml>
   val trimmed : string = input.trim
   if (trimmed.count == 0) then
