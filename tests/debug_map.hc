@@ -1,31 +1,16 @@
 import "../src/yaml"
 
-test "debug one match" {
-  let input = "name: my-project\nversion: 1"
-  match yaml_parse(input) {
-    Ok(doc) => {
-      match yaml_get(doc, "name") {
-        Some(YStr(s)) => assert(s == "my-project"),
-        _ => assert(false)
-      }
-    },
-    _ => assert(false)
+fun test_let_in_if(x: int) : string {
+  if x > 0 {
+    let msg = "positive"
+    msg
+  } else {
+    let msg = "non-positive"
+    msg
   }
 }
 
-test "debug two matches" {
-  let input = "name: my-project\nversion: 1"
-  match yaml_parse(input) {
-    Ok(doc) => {
-      match yaml_get(doc, "name") {
-        Some(YStr(s)) => assert(s == "my-project"),
-        _ => assert(false)
-      }
-      match yaml_get(doc, "version") {
-        Some(YInt(n)) => assert(n == 1),
-        _ => assert(false)
-      }
-    },
-    _ => assert(false)
-  }
+test "let in if branch" {
+  assert(test_let_in_if(5) == "positive")
+  assert(test_let_in_if(0) == "non-positive")
 }

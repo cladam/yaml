@@ -140,23 +140,18 @@ pub fun is_list_line(line: string) : bool =>
 pub fun list_item_value(line: string) : string =>
   trim(trim_start(line)[2:])
 
-pub fun parse_list_nested_map(line: string, blk: BlockResult, base_indent: int) : list<Yaml> =>
-  [parse_lines([trim_start(line)[2:]] + blk.collected)] + parse_list_entries(blk.remaining, base_indent)
-
-pub fun parse_list_nested_block(blk: BlockResult, base_indent: int) : list<Yaml> =>
-  [parse_lines(blk.collected)] + parse_list_entries(blk.remaining, base_indent)
-
-pub fun parse_list_entries(remaining: list<string>, base_indent: int) : list<Yaml> {
-  match remaining {
+pub fun parse_list_entries(lines: list<string>, base_indent: int) : list<Yaml> {
+  match lines {
     [] => [],
     [line, ..rest] => {
       if indent_of(line) == base_indent && is_list_line(line) {
         let val_str = list_item_value(line)
         let blk = collect_block(rest, base_indent)
         if length(blk.collected) > 0 && str_length(val_str) > 0 {
-          parse_list_nested_map(line, blk, base_indent)
+          let sub_lines = [trim_start(line)[2:]] + blk.collected
+          [parse_lines(sub_lines)] + parse_list_entries(blk.remaining, base_indent)
         } else if length(blk.collected) > 0 {
-          parse_list_nested_block(blk, base_indent)
+          [parse_lines(blk.collected)] + parse_list_entries(blk.remaining, base_indent)
         } else {
           [parse_scalar(val_str)] + parse_list_entries(rest, base_indent)
         }
@@ -232,36 +227,29 @@ pub fun collect_list_block(lines: list<string>, base_indent: int) : BlockResult 
   }
 }
 
-pub fun parse_inline_entry(key: string, val_str: string, rest: list<string>, base_indent: int) : list<(string, Yaml)> =>
-  [(key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
-
-pub fun parse_nested_with_block(key: string, blk: BlockResult, base_indent: int) : list<(string, Yaml)> =>
-  [(key, parse_lines(blk.collected))] + parse_map_entries(blk.remaining, base_indent)
-
-pub fun is_next_list_at_indent(rest: list<string>, base_indent: int) : bool => match rest {
-  [next_line, ..] => indent_of(next_line) == base_indent && is_list_line(next_line),
-  [] => false
-}
-
-pub fun parse_nested_entry(key: string, rest: list<string>, base_indent: int) : list<(string, Yaml)> {
-  if is_next_list_at_indent(rest, base_indent) {
-    parse_nested_with_block(key, collect_list_block(rest, base_indent), base_indent)
-  } else if length(rest) > 0 {
-    parse_nested_with_block(key, collect_block(rest, base_indent), base_indent)
-  } else {
-    [(key, YNull)]
-  }
-}
-
-pub fun parse_map_entries(remaining: list<string>, base_indent: int) : list<(string, Yaml)> {
-  match remaining {
+pub fun parse_map_entries(lines: list<string>, base_indent: int) : list<(string, Yaml)> {
+  match lines {
     [] => [],
     [line, ..rest] => {
       if indent_of(line) == base_indent && is_map_line(line) {
-        if str_length(kv_val(line)) > 0 {
-          parse_inline_entry(kv_key(line), kv_val(line), rest, base_indent)
+        let key = kv_key(line)
+        let val_str = kv_val(line)
+        if str_length(val_str) > 0 {
+          [(key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
         } else {
-          parse_nested_entry(kv_key(line), rest, base_indent)
+          let is_next_list = match rest {
+            [next_line, ..] => indent_of(next_line) == base_indent && is_list_line(next_line),
+            [] => false
+          }
+          if is_next_list {
+            let blk = collect_list_block(rest, base_indent)
+            [(key, parse_lines(blk.collected))] + parse_map_entries(blk.remaining, base_indent)
+          } else if length(rest) > 0 {
+            let blk = collect_block(rest, base_indent)
+            [(key, parse_lines(blk.collected))] + parse_map_entries(blk.remaining, base_indent)
+          } else {
+            [(key, YNull)]
+          }
         }
       } else {
         parse_map_entries(rest, base_indent)

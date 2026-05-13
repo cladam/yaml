@@ -137,7 +137,10 @@ pub fun hc_parse_scalar(s : string) : yaml
                 if ((trimmed.to-lower == "null") || (trimmed == "~")) then
                   YNull
                 else
-                  YStr(trimmed)
+                  if (trimmed == "[]") then
+                    YList([])
+                  else
+                    YStr(trimmed)
 
 pub fun hc_indent_of(line : string) : int
   (line.count - line.trim-left.count)
@@ -154,6 +157,36 @@ pub fun hc_strip_comment(line : string) : string
 
 pub fun hc_prepare_lines(input : string) : list<string>
   filter(map(input.split("\n"), fn(l) hc_strip_comment(l)), fn(l) (l.trim.count > 0))
+
+pub fun hc_is_list_line(line : string) : bool
+  line.trim-left.starts-with("- ").is-just
+
+pub fun hc_list_item_value(line : string) : string
+  line.trim-left.list.drop(2).string.trim
+
+pub fun hc_parse_list_nested_map(line : string, blk : blockresult, base_indent : int) : div list<yaml>
+  ([hc_parse_lines(([line.trim-left.list.drop(2).string] ++ blk.collected))] ++ hc_parse_list_entries(blk.remaining, base_indent))
+
+pub fun hc_parse_list_nested_block(blk : blockresult, base_indent : int) : div list<yaml>
+  ([hc_parse_lines(blk.collected)] ++ hc_parse_list_entries(blk.remaining, base_indent))
+
+pub fun hc_parse_list_entries(remaining : list<string>, base_indent : int) : div list<yaml>
+  match remaining
+    Nil ->
+      []
+    Cons(line, rest) ->
+      if ((hc_indent_of(line) == base_indent) && hc_is_list_line(line)) then
+        val val_str : string = hc_list_item_value(line)
+        val blk : blockresult = hc_collect_block(rest, base_indent)
+        if ((list/length(blk.collected) > 0) && (val_str.count > 0)) then
+          hc_parse_list_nested_map(line, blk, base_indent)
+        else
+          if (list/length(blk.collected) > 0) then
+            hc_parse_list_nested_block(blk, base_indent)
+          else
+            ([hc_parse_scalar(val_str)] ++ hc_parse_list_entries(rest, base_indent))
+      else
+        hc_parse_list_entries(rest, base_indent)
 
 pub fun hc_is_map_line(line : string) : bool
   val trimmed : string = line.trim-left
@@ -194,11 +227,38 @@ pub fun hc_collect_block(lines : list<string>, base_indent : int) : div blockres
       else
         BlockResult([], lines)
 
+pub fun hc_collect_list_block(lines : list<string>, base_indent : int) : div blockresult
+  match lines
+    Nil ->
+      BlockResult([], [])
+    Cons(line, rest) ->
+      if ((hc_indent_of(line) == base_indent) && hc_is_list_line(line)) then
+        val inner : blockresult = hc_collect_list_block(rest, base_indent)
+        BlockResult(([line] ++ inner.collected), inner.remaining)
+      else
+        BlockResult([], lines)
+
 pub fun hc_parse_inline_entry(key : string, val_str : string, rest : list<string>, base_indent : int) : div list<(string, yaml)>
   ([(key, hc_parse_scalar(val_str))] ++ hc_parse_map_entries(rest, base_indent))
 
-pub fun hc_parse_nested_entry(key : string, blk : blockresult, base_indent : int) : div list<(string, yaml)>
+pub fun hc_parse_nested_with_block(key : string, blk : blockresult, base_indent : int) : div list<(string, yaml)>
   ([(key, hc_parse_lines(blk.collected))] ++ hc_parse_map_entries(blk.remaining, base_indent))
+
+pub fun hc_is_next_list_at_indent(rest : list<string>, base_indent : int) : bool
+  match rest
+    Cons(next_line, _) ->
+      ((hc_indent_of(next_line) == base_indent) && hc_is_list_line(next_line))
+    Nil ->
+      False
+
+pub fun hc_parse_nested_entry(key : string, rest : list<string>, base_indent : int) : div list<(string, yaml)>
+  if hc_is_next_list_at_indent(rest, base_indent) then
+    hc_parse_nested_with_block(key, hc_collect_list_block(rest, base_indent), base_indent)
+  else
+    if (list/length(rest) > 0) then
+      hc_parse_nested_with_block(key, hc_collect_block(rest, base_indent), base_indent)
+    else
+      [(key, YNull)]
 
 pub fun hc_parse_map_entries(remaining : list<string>, base_indent : int) : div list<(string, yaml)>
   match remaining
@@ -209,7 +269,7 @@ pub fun hc_parse_map_entries(remaining : list<string>, base_indent : int) : div 
         if (hc_kv_val(line).count > 0) then
           hc_parse_inline_entry(hc_kv_key(line), hc_kv_val(line), rest, base_indent)
         else
-          hc_parse_nested_entry(hc_kv_key(line), hc_collect_block(rest, base_indent), base_indent)
+          hc_parse_nested_entry(hc_kv_key(line), rest, base_indent)
       else
         hc_parse_map_entries(rest, base_indent)
 
@@ -218,15 +278,66 @@ pub fun hc_parse_lines(all_lines : list<string>) : div yaml
     Nil ->
       YNull
     Cons(single, Nil) ->
-      if hc_is_map_line(single) then
-        YMap([(hc_kv_key(single), hc_parse_scalar(hc_kv_val(single)))])
+      if hc_is_list_line(single) then
+        YList([hc_parse_scalar(hc_list_item_value(single))])
       else
-        hc_parse_scalar(single)
+        if hc_is_map_line(single) then
+          YMap([(hc_kv_key(single), hc_parse_scalar(hc_kv_val(single)))])
+        else
+          hc_parse_scalar(single)
     Cons(first, _) ->
-      if hc_is_map_line(first) then
-        YMap(hc_parse_map_entries(all_lines, hc_indent_of(first)))
+      if hc_is_list_line(first) then
+        YList(hc_parse_list_entries(all_lines, hc_indent_of(first)))
       else
-        hc_parse_scalar(first)
+        if hc_is_map_line(first) then
+          YMap(hc_parse_map_entries(all_lines, hc_indent_of(first)))
+        else
+          hc_parse_scalar(first)
+
+pub fun hc_yaml_show(y : yaml) : string
+  match y
+    YStr(v) ->
+      v
+    YInt(v) ->
+      show(v)
+    YFloat(v) ->
+      show(v)
+    YBool(v) ->
+      if v then
+        "true"
+      else
+        "false"
+    YNull ->
+      "null"
+    YList(items) ->
+      (("[list:" ++ show(list/length(items))) ++ "]")
+    YMap(entries) ->
+      (("[map:" ++ show(list/length(entries))) ++ "]")
+
+pub fun hc_make_pad(n : int) : div string
+  if (n <= 0) then
+    ""
+  else
+    ("  " ++ hc_make_pad((n - 1)))
+
+pub fun hc_show_entry_val(v : yaml, indent : int) : div string
+  match v
+    YMap(es) ->
+      ("\n" ++ hc_yaml_pretty(v, (indent + 1)))
+    YList(is) ->
+      ("\n" ++ hc_yaml_pretty(v, (indent + 1)))
+    _ ->
+      hc_yaml_show(v)
+
+pub fun hc_yaml_pretty(y : yaml, indent : int) : div string
+  val pad : string = hc_make_pad(indent)
+  match y
+    YMap(entries) ->
+      map(entries, fn(e) (((pad ++ e.fst) ++ ": ") ++ hc_show_entry_val(e.snd, indent))).join("\n")
+    YList(items) ->
+      map(items, fn(i) ((pad ++ "- ") ++ hc_show_entry_val(i, indent))).join("\n")
+    _ ->
+      (pad ++ hc_yaml_show(y))
 
 pub fun hc_yaml_parse(input : string) : div either<string, yaml>
   val trimmed : string = input.trim
@@ -239,58 +350,33 @@ pub fun hc_yaml_parse(input : string) : div either<string, yaml>
     else
       Right(hc_parse_lines(ls))
 
-fun hctest0()
-  val input : string = "name: my-project\nversion: 1"
-  match hc_yaml_parse(input)
-    Right(doc) ->
-      match hc_yaml_get(doc, "name")
-        Just(YStr(s)) ->
-          (if !((s == "my-project")) then throw("assertion failed") else ())
-        _ ->
-          (if !(False) then throw("assertion failed") else ())
-    _ ->
-      (if !(False) then throw("assertion failed") else ())
+fun hc_test_let_in_if(x : int) : string
+  if (x > 0) then
+    val msg : string = "positive"
+    msg
+  else
+    val msg : string = "non-positive"
+    msg
 
-fun hctest1()
-  val input : string = "name: my-project\nversion: 1"
-  match hc_yaml_parse(input)
-    Right(doc) ->
-      match hc_yaml_get(doc, "name")
-        Just(YStr(s)) ->
-          (if !((s == "my-project")) then throw("assertion failed") else ())
-        _ ->
-          (if !(False) then throw("assertion failed") else ())
-      match hc_yaml_get(doc, "version")
-        Just(YInt(n)) ->
-          (if !((n == 1)) then throw("assertion failed") else ())
-        _ ->
-          (if !(False) then throw("assertion failed") else ())
-    _ ->
-      (if !(False) then throw("assertion failed") else ())
+fun hctest0()
+  (if !((hc_test_let_in_if(5) == "positive")) then throw("assertion failed") else ())
+  (if !((hc_test_let_in_if(0) == "non-positive")) then throw("assertion failed") else ())
 
 fun main()
   println("")
-  println("running 2 test(s)...")
+  println("running 1 test(s)...")
   println("")
   val r0 = match try({ hctest0() })
     Ok(_) ->
-      println("  \x1b[32m\u2713\x1b[0m " ++ "debug one match")
+      println("  \x1b[32m\u2713\x1b[0m " ++ "let in if branch")
       True
     Error(e) ->
-      println("  \x1b[31m\u2717\x1b[0m " ++ "debug one match")
-      println("    " ++ e.message)
-      False
-  val r1 = match try({ hctest1() })
-    Ok(_) ->
-      println("  \x1b[32m\u2713\x1b[0m " ++ "debug two matches")
-      True
-    Error(e) ->
-      println("  \x1b[31m\u2717\x1b[0m " ++ "debug two matches")
+      println("  \x1b[31m\u2717\x1b[0m " ++ "let in if branch")
       println("    " ++ e.message)
       False
   println("")
-  val passed = [r0, r1].filter(fn(x) x).length
-  val failed = 2 - passed
+  val passed = [r0].filter(fn(x) x).length
+  val failed = 1 - passed
   if failed == 0 then
     println("\x1b[32m" ++ passed.show ++ " test(s) passed\x1b[0m")
   else
