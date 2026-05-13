@@ -134,7 +134,10 @@ pub fun hc_parse_scalar(s : string) : yaml
                 if ((trimmed.to-lower == "null") || (trimmed == "~")) then
                   YNull
                 else
-                  YStr(trimmed)
+                  if (trimmed == "[]") then
+                    YList([])
+                  else
+                    YStr(trimmed)
 
 pub fun hc_indent_of(line : string) : int
   (line.count - line.trim-left.count)
@@ -221,11 +224,38 @@ pub fun hc_collect_block(lines : list<string>, base_indent : int) : div blockres
       else
         BlockResult([], lines)
 
+pub fun hc_collect_list_block(lines : list<string>, base_indent : int) : div blockresult
+  match lines
+    Nil ->
+      BlockResult([], [])
+    Cons(line, rest) ->
+      if ((hc_indent_of(line) == base_indent) && hc_is_list_line(line)) then
+        val inner : blockresult = hc_collect_list_block(rest, base_indent)
+        BlockResult(([line] ++ inner.collected), inner.remaining)
+      else
+        BlockResult([], lines)
+
 pub fun hc_parse_inline_entry(key : string, val_str : string, rest : list<string>, base_indent : int) : div list<(string, yaml)>
   ([(key, hc_parse_scalar(val_str))] ++ hc_parse_map_entries(rest, base_indent))
 
-pub fun hc_parse_nested_entry(key : string, blk : blockresult, base_indent : int) : div list<(string, yaml)>
+pub fun hc_parse_nested_with_block(key : string, blk : blockresult, base_indent : int) : div list<(string, yaml)>
   ([(key, hc_parse_lines(blk.collected))] ++ hc_parse_map_entries(blk.remaining, base_indent))
+
+pub fun hc_is_next_list_at_indent(rest : list<string>, base_indent : int) : bool
+  match rest
+    Cons(next_line, _) ->
+      ((hc_indent_of(next_line) == base_indent) && hc_is_list_line(next_line))
+    Nil ->
+      False
+
+pub fun hc_parse_nested_entry(key : string, rest : list<string>, base_indent : int) : div list<(string, yaml)>
+  if hc_is_next_list_at_indent(rest, base_indent) then
+    hc_parse_nested_with_block(key, hc_collect_list_block(rest, base_indent), base_indent)
+  else
+    if (list/length(rest) > 0) then
+      hc_parse_nested_with_block(key, hc_collect_block(rest, base_indent), base_indent)
+    else
+      [(key, YNull)]
 
 pub fun hc_parse_map_entries(remaining : list<string>, base_indent : int) : div list<(string, yaml)>
   match remaining
@@ -236,7 +266,7 @@ pub fun hc_parse_map_entries(remaining : list<string>, base_indent : int) : div 
         if (hc_kv_val(line).count > 0) then
           hc_parse_inline_entry(hc_kv_key(line), hc_kv_val(line), rest, base_indent)
         else
-          hc_parse_nested_entry(hc_kv_key(line), hc_collect_block(rest, base_indent), base_indent)
+          hc_parse_nested_entry(hc_kv_key(line), rest, base_indent)
       else
         hc_parse_map_entries(rest, base_indent)
 
@@ -270,7 +300,10 @@ pub fun hc_yaml_show(y : yaml) : string
     YFloat(v) ->
       show(v)
     YBool(v) ->
-      show(v)
+      if v then
+        "true"
+      else
+        "false"
     YNull ->
       "null"
     YList(items) ->

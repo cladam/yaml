@@ -107,6 +107,10 @@ pub fun parse_scalar(s: string) : Yaml {
   // Null
   else if to_lower(trimmed) == "null" || trimmed == "~" {
     YNull
+  }
+  // Inline empty list
+  else if trimmed == "[]" {
+    YList([])
   } else {
     YStr(trimmed)
   }
@@ -213,11 +217,41 @@ pub fun collect_block(lines: list<string>, base_indent: int) : BlockResult {
   }
 }
 
+// Collect consecutive list lines at the same indent level
+pub fun collect_list_block(lines: list<string>, base_indent: int) : BlockResult {
+  match lines {
+    [] => BlockResult { collected: [], remaining: [] },
+    [line, ..rest] => {
+      if indent_of(line) == base_indent && is_list_line(line) {
+        let inner = collect_list_block(rest, base_indent)
+        BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
+      } else {
+        BlockResult { collected: [], remaining: lines }
+      }
+    }
+  }
+}
+
 pub fun parse_inline_entry(key: string, val_str: string, rest: list<string>, base_indent: int) : list<(string, Yaml)> =>
   [(key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
 
-pub fun parse_nested_entry(key: string, blk: BlockResult, base_indent: int) : list<(string, Yaml)> =>
+pub fun parse_nested_with_block(key: string, blk: BlockResult, base_indent: int) : list<(string, Yaml)> =>
   [(key, parse_lines(blk.collected))] + parse_map_entries(blk.remaining, base_indent)
+
+pub fun is_next_list_at_indent(rest: list<string>, base_indent: int) : bool => match rest {
+  [next_line, ..] => indent_of(next_line) == base_indent && is_list_line(next_line),
+  [] => false
+}
+
+pub fun parse_nested_entry(key: string, rest: list<string>, base_indent: int) : list<(string, Yaml)> {
+  if is_next_list_at_indent(rest, base_indent) {
+    parse_nested_with_block(key, collect_list_block(rest, base_indent), base_indent)
+  } else if length(rest) > 0 {
+    parse_nested_with_block(key, collect_block(rest, base_indent), base_indent)
+  } else {
+    [(key, YNull)]
+  }
+}
 
 pub fun parse_map_entries(remaining: list<string>, base_indent: int) : list<(string, Yaml)> {
   match remaining {
@@ -227,7 +261,7 @@ pub fun parse_map_entries(remaining: list<string>, base_indent: int) : list<(str
         if str_length(kv_val(line)) > 0 {
           parse_inline_entry(kv_key(line), kv_val(line), rest, base_indent)
         } else {
-          parse_nested_entry(kv_key(line), collect_block(rest, base_indent), base_indent)
+          parse_nested_entry(kv_key(line), rest, base_indent)
         }
       } else {
         parse_map_entries(rest, base_indent)
@@ -266,7 +300,7 @@ pub fun yaml_show(y: Yaml) : string => match y {
   YStr(v) => v,
   YInt(v) => show(v),
   YFloat(v) => show(v),
-  YBool(v) => show(v),
+  YBool(v) => if v { "true" } else { "false" },
   YNull => "null",
   YList(items) => "[list:" + show(length(items)) + "]",
   YMap(entries) => "[map:" + show(length(entries)) + "]"

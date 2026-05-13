@@ -418,3 +418,52 @@ test "map with list value" {
     _ => assert(false)
   }
 }
+
+test "same-indent list under map key" {
+  let input = "ignore:\n- foo\n- bar\nname: test"
+  match yaml_parse(input) {
+    Ok(doc) => {
+      match yaml_get(doc, "ignore") {
+        Some(v) => {
+          match yaml_list(v) {
+            Some(items) => {
+              assert(length(items) == 2)
+              assert(yaml_str(items[0]) == Some("foo"))
+              assert(yaml_str(items[1]) == Some("bar"))
+            },
+            _ => assert(false)
+          }
+        },
+        _ => assert(false)
+      }
+      match yaml_get(doc, "name") {
+        Some(v) => assert(yaml_str(v) == Some("test")),
+        _ => assert(false)
+      }
+    },
+    _ => assert(false)
+  }
+}
+
+test "inline empty list" {
+  let input = "items: []"
+  match yaml_parse(input) {
+    Ok(doc) => {
+      match yaml_get(doc, "items") {
+        Some(v) => {
+          match yaml_list(v) {
+            Some(items) => assert(length(items) == 0),
+            _ => assert(false)
+          }
+        },
+        _ => assert(false)
+      }
+    },
+    _ => assert(false)
+  }
+}
+
+test "yaml_show bool lowercase" {
+  assert(yaml_show(YBool(true)) == "true")
+  assert(yaml_show(YBool(false)) == "false")
+}
