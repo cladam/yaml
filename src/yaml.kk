@@ -285,24 +285,27 @@ pub fun hc_is_list_line(line : string) : bool
 pub fun hc_list_item_value(line : string) : string
   line.trim-left.list.drop(2).string.trim
 
-pub fun hc_parse_list_entries(lines : list<string>, base_indent : int) : div list<yaml>
+pub fun hc_collect_block(lines : list<string>, base_indent : int) : div blockresult
   match lines
     Nil ->
-      []
+      BlockResult([], [])
+    Cons(line, rest) ->
+      if (hc_indent_of(line) > base_indent) then
+        val inner : blockresult = hc_collect_block(rest, base_indent)
+        BlockResult(([line] ++ inner.collected), inner.remaining)
+      else
+        BlockResult([], lines)
+
+pub fun hc_collect_list_block(lines : list<string>, base_indent : int) : div blockresult
+  match lines
+    Nil ->
+      BlockResult([], [])
     Cons(line, rest) ->
       if ((hc_indent_of(line) == base_indent) && hc_is_list_line(line)) then
-        val val_str : string = hc_list_item_value(line)
-        val blk : blockresult = hc_collect_block(rest, base_indent)
-        if ((list/length(blk.collected) > 0) && (val_str.count > 0)) then
-          val sub_lines : list<string> = ([line.trim-left.list.drop(2).string] ++ blk.collected)
-          ([hc_parse_lines(sub_lines)] ++ hc_parse_list_entries(blk.remaining, base_indent))
-        else
-          if (list/length(blk.collected) > 0) then
-            ([hc_parse_lines(blk.collected)] ++ hc_parse_list_entries(blk.remaining, base_indent))
-          else
-            ([hc_parse_scalar(val_str)] ++ hc_parse_list_entries(rest, base_indent))
+        val inner : blockresult = hc_collect_list_block(rest, base_indent)
+        BlockResult(([line] ++ inner.collected), inner.remaining)
       else
-        hc_parse_list_entries(rest, base_indent)
+        BlockResult([], lines)
 
 pub fun hc_is_map_line(line : string) : bool
   val trimmed : string = line.trim-left
@@ -332,27 +335,24 @@ pub fun hc_kv_key(line : string) : string
 pub fun hc_kv_val(line : string) : string
   hc_split_kv(line).snd
 
-pub fun hc_collect_block(lines : list<string>, base_indent : int) : div blockresult
+pub fun hc_parse_list_entries(lines : list<string>, base_indent : int) : div list<yaml>
   match lines
     Nil ->
-      BlockResult([], [])
-    Cons(line, rest) ->
-      if (hc_indent_of(line) > base_indent) then
-        val inner : blockresult = hc_collect_block(rest, base_indent)
-        BlockResult(([line] ++ inner.collected), inner.remaining)
-      else
-        BlockResult([], lines)
-
-pub fun hc_collect_list_block(lines : list<string>, base_indent : int) : div blockresult
-  match lines
-    Nil ->
-      BlockResult([], [])
+      []
     Cons(line, rest) ->
       if ((hc_indent_of(line) == base_indent) && hc_is_list_line(line)) then
-        val inner : blockresult = hc_collect_list_block(rest, base_indent)
-        BlockResult(([line] ++ inner.collected), inner.remaining)
+        val val_str : string = hc_list_item_value(line)
+        val blk : blockresult = hc_collect_block(rest, base_indent)
+        if ((list/length(blk.collected) > 0) && (val_str.count > 0)) then
+          val sub_lines : list<string> = ([line.trim-left.list.drop(2).string] ++ blk.collected)
+          ([hc_parse_lines(sub_lines)] ++ hc_parse_list_entries(blk.remaining, base_indent))
+        else
+          if (list/length(blk.collected) > 0) then
+            ([hc_parse_lines(blk.collected)] ++ hc_parse_list_entries(blk.remaining, base_indent))
+          else
+            ([hc_parse_scalar(val_str)] ++ hc_parse_list_entries(rest, base_indent))
       else
-        BlockResult([], lines)
+        hc_parse_list_entries(rest, base_indent)
 
 pub fun hc_parse_map_entries(lines : list<string>, base_indent : int) : div list<(string, yaml)>
   match lines

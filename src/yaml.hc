@@ -1,6 +1,10 @@
 // yaml.hc — A YAML subset parser for hica
 // Supports: scalars, block maps, block sequences, comments, nesting
 
+// ============================================================
+// Types
+// ============================================================
+
 type Yaml {
   YStr(value: string),
   YInt(value: int),
@@ -11,7 +15,14 @@ type Yaml {
   YMap(entries: list<(string, Yaml)>)
 }
 
-// --- Accessors ---
+struct BlockResult {
+  collected: list<string>,
+  remaining: list<string>
+}
+
+// ============================================================
+// Accessors
+// ============================================================
 
 pub fun yaml_get(y: Yaml, key: string) : maybe<Yaml> => match y {
   YMap(entries) => entries
@@ -50,22 +61,21 @@ pub fun yaml_map(y: Yaml) : maybe<list<(string, Yaml)>> => match y {
   _ => None
 }
 
-// --- Pipe-friendly API ---
+// ============================================================
+// Pipe-friendly API
+// ============================================================
 // Usage: yaml_parse(input) |> yaml_ok |> at("db") |> at("host") |> as_str
 
-// Convert parse result to maybe for piping
 pub fun yaml_ok(r: result<Yaml, string>) : maybe<Yaml> => match r {
   Ok(y) => Some(y),
   Err(_) => None
 }
 
-// Navigate into a map by key
 pub fun at(m: maybe<Yaml>, key: string) : maybe<Yaml> => match m {
   Some(y) => yaml_get(y, key),
   None => None
 }
 
-// Navigate into a list by index
 pub fun nth(m: maybe<Yaml>, index: int) : maybe<Yaml> => match m {
   Some(YList(items)) => list_at(items, index),
   _ => None
@@ -76,7 +86,6 @@ pub fun list_at(xs: list<Yaml>, i: int) : maybe<Yaml> => match xs {
   [x, ..rest] => if i == 0 { Some(x) } else { list_at(rest, i - 1) }
 }
 
-// Extract scalars from maybe<Yaml>
 pub fun as_str(m: maybe<Yaml>) : maybe<string> => match m {
   Some(y) => yaml_str(y),
   None => None
@@ -107,7 +116,6 @@ pub fun as_map(m: maybe<Yaml>) : maybe<list<(string, Yaml)>> => match m {
   None => None
 }
 
-// Extract with defaults
 pub fun str_or(m: maybe<Yaml>, fallback: string) : string => match as_str(m) {
   Some(v) => v,
   None => fallback
@@ -128,26 +136,25 @@ pub fun bool_or(m: maybe<Yaml>, fallback: bool) : bool => match as_bool(m) {
   None => fallback
 }
 
-// Check if a key exists
 pub fun has_key(m: maybe<Yaml>, key: string) : bool => match m {
   Some(y) => is_some(yaml_get(y, key)),
   None => false
 }
 
-// Get list of keys from a map
 pub fun keys(m: maybe<Yaml>) : list<string> => match m {
   Some(YMap(entries)) => map(entries, (e) => e.0),
   _ => []
 }
 
-// Get number of entries/items
 pub fun yaml_length(m: maybe<Yaml>) : int => match m {
   Some(YList(items)) => length(items),
   Some(YMap(entries)) => length(entries),
   _ => 0
 }
 
-// --- Scalar parsing ---
+// ============================================================
+// Scalar parsing
+// ============================================================
 
 pub fun is_digit_str(c: string) : bool =>
   contains("0123456789", c)
@@ -156,7 +163,6 @@ pub fun all_digits(s: string) : bool =>
   str_length(s) > 0 && all(s.split(""), (c) => is_digit_str(c))
 
 pub fun is_float_str(s: string) : bool {
-  // Strip optional leading minus
   let body = if starts_with(s, "-") { s[1:] } else { s }
   let parts = split(body, ".")
   match parts {
@@ -168,15 +174,12 @@ pub fun is_float_str(s: string) : bool {
 pub fun parse_scalar(s: string) : Yaml {
   let trimmed = trim(s)
 
-  // Double-quoted string
   if starts_with(trimmed, "\"") && ends_with(trimmed, "\"") && str_length(trimmed) >= 2 {
     YStr(trimmed[1:str_length(trimmed) - 1])
   }
-  // Single-quoted string
   else if starts_with(trimmed, "'") && ends_with(trimmed, "'") && str_length(trimmed) >= 2 {
     YStr(trimmed[1:str_length(trimmed) - 1])
   }
-  // Integer: optional minus, then digits
   else if starts_with(trimmed, "-") && all_digits(trimmed[1:]) {
     match parse_int(trimmed) {
       Some(n) => YInt(n),
@@ -188,24 +191,20 @@ pub fun parse_scalar(s: string) : Yaml {
       None => YStr(trimmed)
     }
   }
-  // Float: digits.digits with optional leading minus
   else if is_float_str(trimmed) {
     match parse_float(trimmed) {
       Some(f) => YFloat(f),
       None => YStr(trimmed)
     }
   }
-  // Booleans
   else if to_lower(trimmed) == "true" {
     YBool(true)
   } else if to_lower(trimmed) == "false" {
     YBool(false)
   }
-  // Null
   else if to_lower(trimmed) == "null" || trimmed == "~" {
     YNull
   }
-  // Inline empty list
   else if trimmed == "[]" {
     YList([])
   } else {
@@ -213,7 +212,9 @@ pub fun parse_scalar(s: string) : Yaml {
   }
 }
 
-// --- Line helpers ---
+// ============================================================
+// Parser — line helpers
+// ============================================================
 
 pub fun indent_of(line: string) : int =>
   str_length(line) - str_length(trim_start(line))
@@ -237,6 +238,70 @@ pub fun is_list_line(line: string) : bool =>
 pub fun list_item_value(line: string) : string =>
   trim(trim_start(line)[2:])
 
+// ============================================================
+// Parser — block collection helpers
+// ============================================================
+
+pub fun collect_block(lines: list<string>, base_indent: int) : BlockResult {
+  match lines {
+    [] => BlockResult { collected: [], remaining: [] },
+    [line, ..rest] => {
+      if indent_of(line) > base_indent {
+        let inner = collect_block(rest, base_indent)
+        BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
+      } else {
+        BlockResult { collected: [], remaining: lines }
+      }
+    }
+  }
+}
+
+pub fun collect_list_block(lines: list<string>, base_indent: int) : BlockResult {
+  match lines {
+    [] => BlockResult { collected: [], remaining: [] },
+    [line, ..rest] => {
+      if indent_of(line) == base_indent && is_list_line(line) {
+        let inner = collect_list_block(rest, base_indent)
+        BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
+      } else {
+        BlockResult { collected: [], remaining: lines }
+      }
+    }
+  }
+}
+
+// ============================================================
+// Parser — map & list parsing
+// ============================================================
+
+pub fun is_map_line(line: string) : bool {
+  let trimmed = trim_start(line)
+  if starts_with(trimmed, "- ") { false }
+  else {
+    match index_of(trimmed, ": ") {
+      Some(_) => true,
+      None => ends_with(trimmed, ":")
+    }
+  }
+}
+
+pub fun split_kv(line: string) : (string, string) {
+  let trimmed = trim_start(line)
+  match index_of(trimmed, ": ") {
+    Some(i) => (trimmed[:i], trim(trimmed[i + 2:])),
+    None => {
+      if ends_with(trimmed, ":") {
+        (trimmed[:str_length(trimmed) - 1], "")
+      } else {
+        (trimmed, "")
+      }
+    }
+  }
+}
+
+pub fun kv_key(line: string) : string => split_kv(line).0
+pub fun kv_val(line: string) : string => split_kv(line).1
+
 pub fun parse_list_entries(lines: list<string>, base_indent: int) : list<Yaml> {
   match lines {
     [] => [],
@@ -254,71 +319,6 @@ pub fun parse_list_entries(lines: list<string>, base_indent: int) : list<Yaml> {
         }
       } else {
         parse_list_entries(rest, base_indent)
-      }
-    }
-  }
-}
-
-pub fun is_map_line(line: string) : bool {
-  let trimmed = trim_start(line)
-  // Must contain ": " or end with ":" — but not start with "- "
-  if starts_with(trimmed, "- ") { false }
-  else {
-    match index_of(trimmed, ": ") {
-      Some(_) => true,
-      None => ends_with(trimmed, ":")
-    }
-  }
-}
-
-pub fun split_kv(line: string) : (string, string) {
-  let trimmed = trim_start(line)
-  match index_of(trimmed, ": ") {
-    Some(i) => (trimmed[:i], trim(trimmed[i + 2:])),
-    None => {
-      // key with no inline value (nested block follows)
-      if ends_with(trimmed, ":") {
-        (trimmed[:str_length(trimmed) - 1], "")
-      } else {
-        (trimmed, "")
-      }
-    }
-  }
-}
-
-pub fun kv_key(line: string) : string => split_kv(line).0
-pub fun kv_val(line: string) : string => split_kv(line).1
-
-struct BlockResult {
-  collected: list<string>,
-  remaining: list<string>
-}
-
-// Collect lines indented deeper than base_indent from the front of remaining lines
-pub fun collect_block(lines: list<string>, base_indent: int) : BlockResult {
-  match lines {
-    [] => BlockResult { collected: [], remaining: [] },
-    [line, ..rest] => {
-      if indent_of(line) > base_indent {
-        let inner = collect_block(rest, base_indent)
-        BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
-      } else {
-        BlockResult { collected: [], remaining: lines }
-      }
-    }
-  }
-}
-
-// Collect consecutive list lines at the same indent level
-pub fun collect_list_block(lines: list<string>, base_indent: int) : BlockResult {
-  match lines {
-    [] => BlockResult { collected: [], remaining: [] },
-    [line, ..rest] => {
-      if indent_of(line) == base_indent && is_list_line(line) {
-        let inner = collect_list_block(rest, base_indent)
-        BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
-      } else {
-        BlockResult { collected: [], remaining: lines }
       }
     }
   }
@@ -355,6 +355,10 @@ pub fun parse_map_entries(lines: list<string>, base_indent: int) : list<(string,
   }
 }
 
+// ============================================================
+// Parser — top-level dispatch
+// ============================================================
+
 pub fun parse_lines(all_lines: list<string>) : Yaml {
   match all_lines {
     [] => YNull,
@@ -379,7 +383,9 @@ pub fun parse_lines(all_lines: list<string>) : Yaml {
   }
 }
 
-// --- Display ---
+// ============================================================
+// Display
+// ============================================================
 
 pub fun yaml_show(y: Yaml) : string => match y {
   YStr(v) => v,
@@ -413,7 +419,9 @@ pub fun yaml_pretty(y: Yaml, indent: int) : string {
   }
 }
 
-// --- Public API ---
+// ============================================================
+// Public entry point
+// ============================================================
 
 pub fun yaml_parse(input: string) : result<Yaml, string> {
   let trimmed = trim(input)
