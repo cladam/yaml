@@ -81,6 +81,130 @@ pub fun hc_yaml_map(y : yaml) : maybe<list<(string, yaml)>>
     _ ->
       Nothing
 
+pub fun hc_yaml_ok(r : either<string, yaml>) : maybe<yaml>
+  match r
+    Right(y) ->
+      Just(y)
+    Left(_) ->
+      Nothing
+
+pub fun hc_at(m : maybe<yaml>, key : string) : maybe<yaml>
+  match m
+    Just(y) ->
+      hc_yaml_get(y, key)
+    Nothing ->
+      Nothing
+
+pub fun hc_nth(m : maybe<yaml>, index : int) : div maybe<yaml>
+  match m
+    Just(YList(items)) ->
+      hc_list_at(items, index)
+    _ ->
+      Nothing
+
+pub fun hc_list_at(xs : list<yaml>, i : int) : div maybe<yaml>
+  match xs
+    Nil ->
+      Nothing
+    Cons(x, rest) ->
+      if (i == 0) then
+        Just(x)
+      else
+        hc_list_at(rest, (i - 1))
+
+pub fun hc_as_str(m : maybe<yaml>) : maybe<string>
+  match m
+    Just(y) ->
+      hc_yaml_str(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_int(m : maybe<yaml>) : maybe<int>
+  match m
+    Just(y) ->
+      hc_yaml_int(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_float(m : maybe<yaml>) : maybe<float64>
+  match m
+    Just(y) ->
+      hc_yaml_float(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_bool(m : maybe<yaml>) : maybe<bool>
+  match m
+    Just(y) ->
+      hc_yaml_bool(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_list(m : maybe<yaml>) : maybe<list<yaml>>
+  match m
+    Just(y) ->
+      hc_yaml_list(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_map(m : maybe<yaml>) : maybe<list<(string, yaml)>>
+  match m
+    Just(y) ->
+      hc_yaml_map(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_str_or(m : maybe<yaml>, fallback : string) : string
+  match hc_as_str(m)
+    Just(v) ->
+      v
+    Nothing ->
+      fallback
+
+pub fun hc_int_or(m : maybe<yaml>, fallback : int) : int
+  match hc_as_int(m)
+    Just(v) ->
+      v
+    Nothing ->
+      fallback
+
+pub fun hc_float_or(m : maybe<yaml>, fallback : float64) : float64
+  match hc_as_float(m)
+    Just(v) ->
+      v
+    Nothing ->
+      fallback
+
+pub fun hc_bool_or(m : maybe<yaml>, fallback : bool) : bool
+  match hc_as_bool(m)
+    Just(v) ->
+      v
+    Nothing ->
+      fallback
+
+pub fun hc_has_key(m : maybe<yaml>, key : string) : bool
+  match m
+    Just(y) ->
+      hc_yaml_get(y, key).is-just
+    Nothing ->
+      False
+
+pub fun hc_keys(m : maybe<yaml>) : list<string>
+  match m
+    Just(YMap(entries)) ->
+      map(entries, fn(e) e.fst)
+    _ ->
+      []
+
+pub fun hc_yaml_length(m : maybe<yaml>) : int
+  match m
+    Just(YList(items)) ->
+      list/length(items)
+    Just(YMap(entries)) ->
+      list/length(entries)
+    _ ->
+      0
+
 pub fun hc_is_digit_str(c : string) : bool
   "0123456789".contains(c)
 
@@ -164,14 +288,8 @@ pub fun hc_is_list_line(line : string) : bool
 pub fun hc_list_item_value(line : string) : string
   line.trim-left.list.drop(2).string.trim
 
-pub fun hc_parse_list_nested_map(line : string, blk : blockresult, base_indent : int) : div list<yaml>
-  ([hc_parse_lines(([line.trim-left.list.drop(2).string] ++ blk.collected))] ++ hc_parse_list_entries(blk.remaining, base_indent))
-
-pub fun hc_parse_list_nested_block(blk : blockresult, base_indent : int) : div list<yaml>
-  ([hc_parse_lines(blk.collected)] ++ hc_parse_list_entries(blk.remaining, base_indent))
-
-pub fun hc_parse_list_entries(remaining : list<string>, base_indent : int) : div list<yaml>
-  match remaining
+pub fun hc_parse_list_entries(lines : list<string>, base_indent : int) : div list<yaml>
+  match lines
     Nil ->
       []
     Cons(line, rest) ->
@@ -179,10 +297,11 @@ pub fun hc_parse_list_entries(remaining : list<string>, base_indent : int) : div
         val val_str : string = hc_list_item_value(line)
         val blk : blockresult = hc_collect_block(rest, base_indent)
         if ((list/length(blk.collected) > 0) && (val_str.count > 0)) then
-          hc_parse_list_nested_map(line, blk, base_indent)
+          val sub_lines : list<string> = ([line.trim-left.list.drop(2).string] ++ blk.collected)
+          ([hc_parse_lines(sub_lines)] ++ hc_parse_list_entries(blk.remaining, base_indent))
         else
           if (list/length(blk.collected) > 0) then
-            hc_parse_list_nested_block(blk, base_indent)
+            ([hc_parse_lines(blk.collected)] ++ hc_parse_list_entries(blk.remaining, base_indent))
           else
             ([hc_parse_scalar(val_str)] ++ hc_parse_list_entries(rest, base_indent))
       else
@@ -238,38 +357,31 @@ pub fun hc_collect_list_block(lines : list<string>, base_indent : int) : div blo
       else
         BlockResult([], lines)
 
-pub fun hc_parse_inline_entry(key : string, val_str : string, rest : list<string>, base_indent : int) : div list<(string, yaml)>
-  ([(key, hc_parse_scalar(val_str))] ++ hc_parse_map_entries(rest, base_indent))
-
-pub fun hc_parse_nested_with_block(key : string, blk : blockresult, base_indent : int) : div list<(string, yaml)>
-  ([(key, hc_parse_lines(blk.collected))] ++ hc_parse_map_entries(blk.remaining, base_indent))
-
-pub fun hc_is_next_list_at_indent(rest : list<string>, base_indent : int) : bool
-  match rest
-    Cons(next_line, _) ->
-      ((hc_indent_of(next_line) == base_indent) && hc_is_list_line(next_line))
-    Nil ->
-      False
-
-pub fun hc_parse_nested_entry(key : string, rest : list<string>, base_indent : int) : div list<(string, yaml)>
-  if hc_is_next_list_at_indent(rest, base_indent) then
-    hc_parse_nested_with_block(key, hc_collect_list_block(rest, base_indent), base_indent)
-  else
-    if (list/length(rest) > 0) then
-      hc_parse_nested_with_block(key, hc_collect_block(rest, base_indent), base_indent)
-    else
-      [(key, YNull)]
-
-pub fun hc_parse_map_entries(remaining : list<string>, base_indent : int) : div list<(string, yaml)>
-  match remaining
+pub fun hc_parse_map_entries(lines : list<string>, base_indent : int) : div list<(string, yaml)>
+  match lines
     Nil ->
       []
     Cons(line, rest) ->
       if ((hc_indent_of(line) == base_indent) && hc_is_map_line(line)) then
-        if (hc_kv_val(line).count > 0) then
-          hc_parse_inline_entry(hc_kv_key(line), hc_kv_val(line), rest, base_indent)
+        val key : string = hc_kv_key(line)
+        val val_str : string = hc_kv_val(line)
+        if (val_str.count > 0) then
+          ([(key, hc_parse_scalar(val_str))] ++ hc_parse_map_entries(rest, base_indent))
         else
-          hc_parse_nested_entry(hc_kv_key(line), rest, base_indent)
+          val is_next_list : bool = match rest
+            Cons(next_line, _) ->
+              ((hc_indent_of(next_line) == base_indent) && hc_is_list_line(next_line))
+            Nil ->
+              False
+          if is_next_list then
+            val blk : blockresult = hc_collect_list_block(rest, base_indent)
+            ([(key, hc_parse_lines(blk.collected))] ++ hc_parse_map_entries(blk.remaining, base_indent))
+          else
+            if (list/length(rest) > 0) then
+              val blk : blockresult = hc_collect_block(rest, base_indent)
+              ([(key, hc_parse_lines(blk.collected))] ++ hc_parse_map_entries(blk.remaining, base_indent))
+            else
+              [(key, YNull)]
       else
         hc_parse_map_entries(rest, base_indent)
 
@@ -350,33 +462,69 @@ pub fun hc_yaml_parse(input : string) : div either<string, yaml>
     else
       Right(hc_parse_lines(ls))
 
-fun hc_test_let_in_if(x : int) : string
-  if (x > 0) then
-    val msg : string = "positive"
-    msg
-  else
-    val msg : string = "non-positive"
-    msg
-
 fun hctest0()
-  (if !((hc_test_let_in_if(5) == "positive")) then throw("assertion failed") else ())
-  (if !((hc_test_let_in_if(0) == "non-positive")) then throw("assertion failed") else ())
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse("name: test"))
+  val name : maybe<string> = hc_as_str(hc_at(doc, "name"))
+  (if !((name == Just("test"))) then throw("assertion failed") else ())
+
+fun hctest1()
+  val input : string = "db:\n  host: localhost"
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse(input))
+  val host : maybe<string> = hc_as_str(hc_at(hc_at(doc, "db"), "host"))
+  (if !((host == Just("localhost"))) then throw("assertion failed") else ())
+
+fun hctest2()
+  val input : string = "- apple\n- banana"
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse(input))
+  val first : maybe<yaml> = hc_nth(doc, 0)
+  val name : maybe<string> = hc_as_str(first)
+  (if !((name == Just("apple"))) then throw("assertion failed") else ())
+
+fun hctest3()
+  val input : string = "- apple\n- banana"
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse(input))
+  val name : maybe<string> = hc_as_str(hc_nth(doc, 0))
+  (if !((name == Just("apple"))) then throw("assertion failed") else ())
 
 fun main()
   println("")
-  println("running 1 test(s)...")
+  println("running 4 test(s)...")
   println("")
   val r0 = match try({ hctest0() })
     Ok(_) ->
-      println("  \x1b[32m\u2713\x1b[0m " ++ "let in if branch")
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe 2 chain")
       True
     Error(e) ->
-      println("  \x1b[31m\u2717\x1b[0m " ++ "let in if branch")
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe 2 chain")
+      println("    " ++ e.message)
+      False
+  val r1 = match try({ hctest1() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe 3 chain at")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe 3 chain at")
+      println("    " ++ e.message)
+      False
+  val r2 = match try({ hctest2() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe nth chain")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe nth chain")
+      println("    " ++ e.message)
+      False
+  val r3 = match try({ hctest3() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe nth inline")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe nth inline")
       println("    " ++ e.message)
       False
   println("")
-  val passed = [r0].filter(fn(x) x).length
-  val failed = 1 - passed
+  val passed = [r0, r1, r2, r3].filter(fn(x) x).length
+  val failed = 4 - passed
   if failed == 0 then
     println("\x1b[32m" ++ passed.show ++ " test(s) passed\x1b[0m")
   else

@@ -81,6 +81,130 @@ pub fun hc_yaml_map(y : yaml) : maybe<list<(string, yaml)>>
     _ ->
       Nothing
 
+pub fun hc_yaml_ok(r : either<string, yaml>) : maybe<yaml>
+  match r
+    Right(y) ->
+      Just(y)
+    Left(_) ->
+      Nothing
+
+pub fun hc_at(m : maybe<yaml>, key : string) : maybe<yaml>
+  match m
+    Just(y) ->
+      hc_yaml_get(y, key)
+    Nothing ->
+      Nothing
+
+pub fun hc_nth(m : maybe<yaml>, index : int) : div maybe<yaml>
+  match m
+    Just(YList(items)) ->
+      hc_list_at(items, index)
+    _ ->
+      Nothing
+
+pub fun hc_list_at(xs : list<yaml>, i : int) : div maybe<yaml>
+  match xs
+    Nil ->
+      Nothing
+    Cons(x, rest) ->
+      if (i == 0) then
+        Just(x)
+      else
+        hc_list_at(rest, (i - 1))
+
+pub fun hc_as_str(m : maybe<yaml>) : maybe<string>
+  match m
+    Just(y) ->
+      hc_yaml_str(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_int(m : maybe<yaml>) : maybe<int>
+  match m
+    Just(y) ->
+      hc_yaml_int(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_float(m : maybe<yaml>) : maybe<float64>
+  match m
+    Just(y) ->
+      hc_yaml_float(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_bool(m : maybe<yaml>) : maybe<bool>
+  match m
+    Just(y) ->
+      hc_yaml_bool(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_list(m : maybe<yaml>) : maybe<list<yaml>>
+  match m
+    Just(y) ->
+      hc_yaml_list(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_map(m : maybe<yaml>) : maybe<list<(string, yaml)>>
+  match m
+    Just(y) ->
+      hc_yaml_map(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_str_or(m : maybe<yaml>, fallback : string) : string
+  match hc_as_str(m)
+    Just(v) ->
+      v
+    Nothing ->
+      fallback
+
+pub fun hc_int_or(m : maybe<yaml>, fallback : int) : int
+  match hc_as_int(m)
+    Just(v) ->
+      v
+    Nothing ->
+      fallback
+
+pub fun hc_float_or(m : maybe<yaml>, fallback : float64) : float64
+  match hc_as_float(m)
+    Just(v) ->
+      v
+    Nothing ->
+      fallback
+
+pub fun hc_bool_or(m : maybe<yaml>, fallback : bool) : bool
+  match hc_as_bool(m)
+    Just(v) ->
+      v
+    Nothing ->
+      fallback
+
+pub fun hc_has_key(m : maybe<yaml>, key : string) : bool
+  match m
+    Just(y) ->
+      hc_yaml_get(y, key).is-just
+    Nothing ->
+      False
+
+pub fun hc_keys(m : maybe<yaml>) : list<string>
+  match m
+    Just(YMap(entries)) ->
+      map(entries, fn(e) e.fst)
+    _ ->
+      []
+
+pub fun hc_yaml_length(m : maybe<yaml>) : int
+  match m
+    Just(YList(items)) ->
+      list/length(items)
+    Just(YMap(entries)) ->
+      list/length(entries)
+    _ ->
+      0
+
 pub fun hc_is_digit_str(c : string) : bool
   "0123456789".contains(c)
 
@@ -767,9 +891,73 @@ fun hctest42()
   (if !((hc_yaml_show(YBool(True)) == "true")) then throw("assertion failed") else ())
   (if !((hc_yaml_show(YBool(False)) == "false")) then throw("assertion failed") else ())
 
+fun hctest43()
+  val input : string = "database:\n  host: localhost\n  port: 5432"
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse(input))
+  val host : maybe<string> = hc_as_str(hc_at(hc_at(doc, "database"), "host"))
+  (if !((host == Just("localhost"))) then throw("assertion failed") else ())
+  val port : maybe<int> = hc_as_int(hc_at(hc_at(doc, "database"), "port"))
+  (if !((port == Just(5432))) then throw("assertion failed") else ())
+
+fun hctest44()
+  val input : string = "name: myapp\nport: 8080"
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse(input))
+  (if !((hc_str_or(hc_at(doc, "name"), "unknown") == "myapp")) then throw("assertion failed") else ())
+  (if !((hc_int_or(hc_at(doc, "port"), 3000) == 8080)) then throw("assertion failed") else ())
+  (if !((hc_str_or(hc_at(doc, "missing"), "fallback") == "fallback")) then throw("assertion failed") else ())
+  (if !((hc_int_or(hc_at(doc, "missing"), 42) == 42)) then throw("assertion failed") else ())
+
+fun hctest45()
+  val input : string = "- apple\n- banana\n- cherry"
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse(input))
+  val first : maybe<string> = hc_as_str(hc_nth(doc, 0))
+  (if !((first == Just("apple"))) then throw("assertion failed") else ())
+  val third : maybe<string> = hc_as_str(hc_nth(doc, 2))
+  (if !((third == Just("cherry"))) then throw("assertion failed") else ())
+  val oob : maybe<string> = hc_as_str(hc_nth(doc, 5))
+  (if !((oob == Nothing)) then throw("assertion failed") else ())
+
+fun hctest46()
+  val input : string = "fruits:\n  - apple\n  - banana"
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse(input))
+  val fruits : maybe<yaml> = hc_at(doc, "fruits")
+  val first : maybe<string> = hc_as_str(hc_nth(fruits, 0))
+  (if !((first == Just("apple"))) then throw("assertion failed") else ())
+  val second : maybe<string> = hc_as_str(hc_nth(fruits, 1))
+  (if !((second == Just("banana"))) then throw("assertion failed") else ())
+
+fun hctest47()
+  val input : string = "name: test\nport: 80"
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse(input))
+  (if !((hc_has_key(doc, "name") == True)) then throw("assertion failed") else ())
+  (if !((hc_has_key(doc, "missing") == False)) then throw("assertion failed") else ())
+
+fun hctest48()
+  val input : string = "name: test\nport: 80"
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse(input))
+  (if !((list/length(hc_keys(doc)) == 2)) then throw("assertion failed") else ())
+  (if !((list/length(hc_keys(hc_at(doc, "nonexistent"))) == 0)) then throw("assertion failed") else ())
+
+fun hctest49()
+  val input : string = "- a\n- b\n- c"
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse(input))
+  (if !((hc_yaml_length(doc) == 3)) then throw("assertion failed") else ())
+  (if !((hc_yaml_length(hc_nth(doc, 0)) == 0)) then throw("assertion failed") else ())
+
+fun hctest50()
+  val input : string = "name: test"
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse(input))
+  val deep : maybe<string> = hc_as_str(hc_at(hc_at(doc, "missing"), "deep"))
+  (if !((deep == Nothing)) then throw("assertion failed") else ())
+
+fun hctest51()
+  val doc : maybe<yaml> = hc_yaml_ok(hc_yaml_parse(""))
+  val hc_val : maybe<string> = hc_as_str(hc_at(doc, "anything"))
+  (if !((hc_val == Nothing)) then throw("assertion failed") else ())
+
 fun main()
   println("")
-  println("running 43 test(s)...")
+  println("running 52 test(s)...")
   println("")
   val r0 = match try({ hctest0() })
     Ok(_) ->
@@ -1115,9 +1303,81 @@ fun main()
       println("  \x1b[31m\u2717\x1b[0m " ++ "yaml_show bool lowercase")
       println("    " ++ e.message)
       False
+  val r43 = match try({ hctest43() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe at chain")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe at chain")
+      println("    " ++ e.message)
+      False
+  val r44 = match try({ hctest44() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe with defaults")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe with defaults")
+      println("    " ++ e.message)
+      False
+  val r45 = match try({ hctest45() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe nth on list")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe nth on list")
+      println("    " ++ e.message)
+      False
+  val r46 = match try({ hctest46() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe nested list in map")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe nested list in map")
+      println("    " ++ e.message)
+      False
+  val r47 = match try({ hctest47() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe has_key")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe has_key")
+      println("    " ++ e.message)
+      False
+  val r48 = match try({ hctest48() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe keys")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe keys")
+      println("    " ++ e.message)
+      False
+  val r49 = match try({ hctest49() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe yaml_length")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe yaml_length")
+      println("    " ++ e.message)
+      False
+  val r50 = match try({ hctest50() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe missing key returns None")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe missing key returns None")
+      println("    " ++ e.message)
+      False
+  val r51 = match try({ hctest51() })
+    Ok(_) ->
+      println("  \x1b[32m\u2713\x1b[0m " ++ "pipe error result")
+      True
+    Error(e) ->
+      println("  \x1b[31m\u2717\x1b[0m " ++ "pipe error result")
+      println("    " ++ e.message)
+      False
   println("")
-  val passed = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42].filter(fn(x) x).length
-  val failed = 43 - passed
+  val passed = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, r37, r38, r39, r40, r41, r42, r43, r44, r45, r46, r47, r48, r49, r50, r51].filter(fn(x) x).length
+  val failed = 52 - passed
   if failed == 0 then
     println("\x1b[32m" ++ passed.show ++ " test(s) passed\x1b[0m")
   else

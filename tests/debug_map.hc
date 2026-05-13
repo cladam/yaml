@@ -1,16 +1,29 @@
 import "../src/yaml"
 
-fun test_let_in_if(x: int) : string {
-  if x > 0 {
-    let msg = "positive"
-    msg
-  } else {
-    let msg = "non-positive"
-    msg
-  }
+test "pipe 2 chain" {
+  let doc = yaml_parse("name: test") |> yaml_ok
+  let name = doc |> at("name") |> as_str
+  assert(name == Some("test"))
 }
 
-test "let in if branch" {
-  assert(test_let_in_if(5) == "positive")
-  assert(test_let_in_if(0) == "non-positive")
+test "pipe 3 chain at" {
+  let input = "db:\n  host: localhost"
+  let doc = yaml_parse(input) |> yaml_ok
+  let host = doc |> at("db") |> at("host") |> as_str
+  assert(host == Some("localhost"))
+}
+
+test "pipe nth chain" {
+  let input = "- apple\n- banana"
+  let doc = yaml_parse(input) |> yaml_ok
+  let first = doc |> nth(0)
+  let name = first |> as_str
+  assert(name == Some("apple"))
+}
+
+test "pipe nth inline" {
+  let input = "- apple\n- banana"
+  let doc = yaml_parse(input) |> yaml_ok
+  let name = doc |> nth(0) |> as_str
+  assert(name == Some("apple"))
 }

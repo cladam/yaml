@@ -78,6 +78,130 @@ pub fun hc_yaml_map(y : yaml) : maybe<list<(string, yaml)>>
     _ ->
       Nothing
 
+pub fun hc_yaml_ok(r : either<string, yaml>) : maybe<yaml>
+  match r
+    Right(y) ->
+      Just(y)
+    Left(_) ->
+      Nothing
+
+pub fun hc_at(m : maybe<yaml>, key : string) : maybe<yaml>
+  match m
+    Just(y) ->
+      hc_yaml_get(y, key)
+    Nothing ->
+      Nothing
+
+pub fun hc_nth(m : maybe<yaml>, index : int) : div maybe<yaml>
+  match m
+    Just(YList(items)) ->
+      hc_list_at(items, index)
+    _ ->
+      Nothing
+
+pub fun hc_list_at(xs : list<yaml>, i : int) : div maybe<yaml>
+  match xs
+    Nil ->
+      Nothing
+    Cons(x, rest) ->
+      if (i == 0) then
+        Just(x)
+      else
+        hc_list_at(rest, (i - 1))
+
+pub fun hc_as_str(m : maybe<yaml>) : maybe<string>
+  match m
+    Just(y) ->
+      hc_yaml_str(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_int(m : maybe<yaml>) : maybe<int>
+  match m
+    Just(y) ->
+      hc_yaml_int(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_float(m : maybe<yaml>) : maybe<float64>
+  match m
+    Just(y) ->
+      hc_yaml_float(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_bool(m : maybe<yaml>) : maybe<bool>
+  match m
+    Just(y) ->
+      hc_yaml_bool(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_list(m : maybe<yaml>) : maybe<list<yaml>>
+  match m
+    Just(y) ->
+      hc_yaml_list(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_as_map(m : maybe<yaml>) : maybe<list<(string, yaml)>>
+  match m
+    Just(y) ->
+      hc_yaml_map(y)
+    Nothing ->
+      Nothing
+
+pub fun hc_str_or(m : maybe<yaml>, fallback : string) : string
+  match hc_as_str(m)
+    Just(v) ->
+      v
+    Nothing ->
+      fallback
+
+pub fun hc_int_or(m : maybe<yaml>, fallback : int) : int
+  match hc_as_int(m)
+    Just(v) ->
+      v
+    Nothing ->
+      fallback
+
+pub fun hc_float_or(m : maybe<yaml>, fallback : float64) : float64
+  match hc_as_float(m)
+    Just(v) ->
+      v
+    Nothing ->
+      fallback
+
+pub fun hc_bool_or(m : maybe<yaml>, fallback : bool) : bool
+  match hc_as_bool(m)
+    Just(v) ->
+      v
+    Nothing ->
+      fallback
+
+pub fun hc_has_key(m : maybe<yaml>, key : string) : bool
+  match m
+    Just(y) ->
+      hc_yaml_get(y, key).is-just
+    Nothing ->
+      False
+
+pub fun hc_keys(m : maybe<yaml>) : list<string>
+  match m
+    Just(YMap(entries)) ->
+      map(entries, fn(e) e.fst)
+    _ ->
+      []
+
+pub fun hc_yaml_length(m : maybe<yaml>) : int
+  match m
+    Just(YList(items)) ->
+      list/length(items)
+    Just(YMap(entries)) ->
+      list/length(entries)
+    _ ->
+      0
+
 pub fun hc_is_digit_str(c : string) : bool
   "0123456789".contains(c)
 
