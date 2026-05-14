@@ -50,6 +50,68 @@ pub fun list_item_value(line: string) : string =>
   trim(trim_start(line)[2:])
 
 // ============================================================
+// Multi-line scalar helpers
+// ============================================================
+
+pub fun is_plain_value(s: string) : bool {
+  let t = trim(s)
+  str_length(t) > 0
+    && !starts_with(t, "\"")
+    && !starts_with(t, "'")
+    && !starts_with(t, "[")
+    && !starts_with(t, "{")
+    && !is_block_scalar_indicator(t)
+}
+
+pub fun is_open_quoted(s: string) : bool {
+  let t = trim(s)
+  if str_length(t) < 2 { false }
+  else if starts_with(t, "\"") && !ends_with(t, "\"") { true }
+  else if starts_with(t, "'") && !ends_with(t, "'") { true }
+  else { false }
+}
+
+pub fun collect_quoted(lines: list<string>, base_indent: int, quote: string) : BlockResult {
+  match lines {
+    [] => BlockResult { collected: [], remaining: [] },
+    [line, ..rest] => {
+      if indent_of(line) > base_indent {
+        if ends_with(trim(line), quote) {
+          BlockResult { collected: [line], remaining: rest }
+        } else {
+          let inner = collect_quoted(rest, base_indent, quote)
+          BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
+        }
+      } else {
+        BlockResult { collected: [], remaining: lines }
+      }
+    }
+  }
+}
+
+pub fun join_multiline(first: string, lines: list<string>) : string {
+  let parts = [first] + map(lines, (l) => trim(l))
+  join(parts, " ")
+}
+
+pub fun block_indent_number(indicator: string) : int {
+  let t = trim(indicator)
+  let rest = t[1:]
+  if str_length(rest) == 0 { 0 }
+  else if str_length(rest) == 1 {
+    if is_digit_str(rest) {
+      match parse_int(rest) { Some(n) => n, None => 0 }
+    } else { 0 }
+  } else {
+    if is_digit_str(rest[:1]) {
+      match parse_int(rest[:1]) { Some(n) => n, None => 0 }
+    } else if is_digit_str(rest[1:]) {
+      match parse_int(rest[1:]) { Some(n) => n, None => 0 }
+    } else { 0 }
+  }
+}
+
+// ============================================================
 // Block collection helpers
 // ============================================================
 
@@ -119,17 +181,36 @@ pub fun parse_list_entries(lines: list<string>, base_indent: int) : list<Yaml> {
     [line, ..rest] => {
       if indent_of(line) == base_indent && is_list_line(line) {
         let val_str = list_item_value(line)
-        let blk = collect_block(rest, base_indent)
-        if length(blk.collected) > 0 && str_length(val_str) > 0 {
-          let pad = make_indent(base_indent + 2)
-          let sub_lines = [pad + val_str] + blk.collected
-          [parse_lines(sub_lines)] + parse_list_entries(blk.remaining, base_indent)
-        } else if length(blk.collected) > 0 {
-          [parse_lines(blk.collected)] + parse_list_entries(blk.remaining, base_indent)
-        } else if is_map_line(val_str) {
-          [YMap([(kv_key(val_str), parse_scalar(kv_val(val_str)))])] + parse_list_entries(rest, base_indent)
+        if is_block_scalar_indicator(val_str) {
+          let blk = collect_block(rest, base_indent)
+          [block_scalar_join(blk.collected, val_str, base_indent)] + parse_list_entries(blk.remaining, base_indent)
+        } else if is_open_quoted(val_str) {
+          let quote = val_str[:1]
+          let cont = collect_quoted(rest, base_indent, quote)
+          if length(cont.collected) > 0 {
+            let full = join_multiline(val_str, cont.collected)
+            [parse_scalar(full)] + parse_list_entries(cont.remaining, base_indent)
+          } else {
+            [parse_scalar(val_str)] + parse_list_entries(rest, base_indent)
+          }
         } else {
-          [parse_scalar(val_str)] + parse_list_entries(rest, base_indent)
+          let blk = collect_block(rest, base_indent)
+          if length(blk.collected) > 0 && str_length(val_str) > 0 {
+            if is_map_line(val_str) {
+              let pad = make_indent(base_indent + 2)
+              let sub_lines = [pad + val_str] + blk.collected
+              [parse_lines(sub_lines)] + parse_list_entries(blk.remaining, base_indent)
+            } else {
+              let parts = [val_str] + map(blk.collected, (l) => trim(l))
+              [YStr(join(parts, " "))] + parse_list_entries(blk.remaining, base_indent)
+            }
+          } else if length(blk.collected) > 0 {
+            [parse_lines(blk.collected)] + parse_list_entries(blk.remaining, base_indent)
+          } else if is_map_line(val_str) {
+            [YMap([(kv_key(val_str), parse_scalar(kv_val(val_str)))])] + parse_list_entries(rest, base_indent)
+          } else {
+            [parse_scalar(val_str)] + parse_list_entries(rest, base_indent)
+          }
         }
       } else {
         parse_list_entries(rest, base_indent)
@@ -140,7 +221,23 @@ pub fun parse_list_entries(lines: list<string>, base_indent: int) : list<Yaml> {
 
 pub fun is_block_scalar_indicator(s: string) : bool {
   let t = trim(s)
-  t == "|" || t == ">" || t == "|-" || t == ">-" || t == "|+" || t == ">+"
+  if str_length(t) == 0 { false }
+  else {
+    let first = t[:1]
+    if first != "|" && first != ">" { false }
+    else {
+      let rest = t[1:]
+      if str_length(rest) == 0 { true }
+      else if str_length(rest) == 1 {
+        rest == "-" || rest == "+" || is_digit_str(rest)
+      } else if str_length(rest) == 2 {
+        (is_digit_str(rest[:1]) && (rest[1:] == "-" || rest[1:] == "+"))
+        || ((rest[:1] == "-" || rest[:1] == "+") && is_digit_str(rest[1:]))
+      } else {
+        false
+      }
+    }
+  }
 }
 
 pub fun strip_block_indent(lines: list<string>, min_ind: int) : list<string> {
@@ -155,15 +252,23 @@ pub fun strip_block_indent(lines: list<string>, min_ind: int) : list<string> {
   }
 }
 
-pub fun block_scalar_join(lines: list<string>, indicator: string) : Yaml {
+pub fun block_scalar_join(lines: list<string>, indicator: string, parent_indent: int) : Yaml {
   let t = trim(indicator)
   let is_literal = starts_with(t, "|")
-  let chomp = if ends_with(t, "-") { "strip" }
-              else if ends_with(t, "+") { "keep" }
+  let rest_ind = t[1:]
+  let has_strip = contains(rest_ind, "-")
+  let has_keep = contains(rest_ind, "+")
+  let chomp = if has_strip { "strip" }
+              else if has_keep { "keep" }
               else { "clip" }
-  let min_ind = match lines {
-    [] => 0,
-    [first, ..] => indent_of(first)
+  let explicit_n = block_indent_number(indicator)
+  let min_ind = if explicit_n > 0 {
+    parent_indent + explicit_n
+  } else {
+    match lines {
+      [] => 0,
+      [first, ..] => indent_of(first)
+    }
   }
   let stripped = strip_block_indent(lines, min_ind)
   let body = if is_literal {
@@ -212,9 +317,28 @@ pub fun parse_map_entries(lines: list<string>, base_indent: int) : list<(string,
         let val_str = kv_val(line)
         if is_block_scalar_indicator(val_str) {
           let blk = collect_block(rest, base_indent)
-          [(key, block_scalar_join(blk.collected, val_str))] + parse_map_entries(blk.remaining, base_indent)
+          [(key, block_scalar_join(blk.collected, val_str, base_indent))] + parse_map_entries(blk.remaining, base_indent)
         } else if str_length(val_str) > 0 {
-          [(key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
+          if is_open_quoted(val_str) {
+            let quote = val_str[:1]
+            let cont = collect_quoted(rest, base_indent, quote)
+            if length(cont.collected) > 0 {
+              let full = join_multiline(val_str, cont.collected)
+              [(key, parse_scalar(full))] + parse_map_entries(cont.remaining, base_indent)
+            } else {
+              [(key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
+            }
+          } else if is_plain_value(val_str) {
+            let cont = collect_block(rest, base_indent)
+            if length(cont.collected) > 0 {
+              let parts = [val_str] + map(cont.collected, (l) => trim(l))
+              [(key, YStr(join(parts, " ")))] + parse_map_entries(cont.remaining, base_indent)
+            } else {
+              [(key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
+            }
+          } else {
+            [(key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
+          }
         } else {
           let is_next_list = match rest {
             [next_line, ..] => indent_of(next_line) == base_indent && is_list_line(next_line),

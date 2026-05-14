@@ -21,7 +21,8 @@ import "./lib/yaml/src/yaml"
 - **Scalars**: strings (bare, single-quoted, double-quoted with escape sequences), integers (decimal, hex `0x`, octal `0o`), floats (decimal, scientific, `.inf`, `.nan`), booleans, null
 - **Block maps**: `key: value` with indentation nesting
 - **Block sequences**: `- item` lists, compact nested mappings (`- name: foo`)
-- **Block scalars**: literal (`|`) and folded (`>`) with chomping (`-`, `+`)
+- **Block scalars**: literal (`|`) and folded (`>`) with chomping (`-`, `+`) and explicit indentation indicators (`|2`, `>4`)
+- **Multi-line scalars**: plain scalar line folding, multi-line quoted strings
 - **Flow collections**: sequences (`[a, b, c]`), mappings (`{key: val}`), nested, trailing commas
 - **Comments**: inline (`# ...`), full-line, inside flow collections
 - **Document markers**: `---` and `...` stripped automatically
@@ -172,6 +173,7 @@ tests/
   test_flow_collections.hc
   test_escapes_and_compact.hc
   test_numbers_and_dedup.hc
+  test_multiline.hc
   test_structure.hc
   test_api.hc
   test_display.hc

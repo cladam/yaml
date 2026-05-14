@@ -30,9 +30,9 @@ This library targets a practical subset — not full spec compliance.
 - [x] Literal block scalars (`|`)
 - [x] Folded block scalars (`>`)
 - [x] Block chomping indicators (`-`, `+`)
-- [ ] Block indentation indicators
-- [ ] Multi-line plain scalars (line folding)
-- [ ] Multi-line quoted scalars
+- [x] Block indentation indicators
+- [x] Multi-line plain scalars (line folding)
+- [x] Multi-line quoted scalars
 
 ## Collections — Block Style (Ch. 8.2)
 
