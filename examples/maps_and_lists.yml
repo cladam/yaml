@@ -1,0 +1,13 @@
+project:
+  name: myapp
+  version: 2
+  features:
+    - auth
+    - logging
+    - metrics
+  database:
+    host: db.local
+    port: 5432
+    replicas:
+      - replica-1
+      - replica-2

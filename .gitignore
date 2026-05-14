@@ -5,6 +5,7 @@ project-description.md
 
 examples/*
 !examples/*.hc
+!examples/*.yml
 
 src/*
 !src/*.hc
