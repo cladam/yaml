@@ -16,27 +16,47 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Koka
+      - name: Install Koka (Unix)
+        if: runner.os != 'Windows'
         run: |
           curl -sSL https://github.com/koka-lang/koka/releases/latest/download/install.sh | sudo sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Install Hica
+      - name: Install Koka (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          curl -sSL -o "$env:TEMP\install-koka.bat" https://github.com/koka-lang/koka/releases/latest/download/install.bat
+          & "$env:TEMP\install-koka.bat"
+          "$env:LOCALAPPDATA\koka\bin" | Out-File -Append -FilePath $env:GITHUB_PATH
+
+      - name: Install Hica (Unix)
+        if: runner.os != 'Windows'
         run: |
           curl -fsSL https://cladam.github.io/hica/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Hica (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          curl -fsSL -o "$env:TEMP\install-hica.ps1" https://cladam.github.io/hica/install.ps1
+          & "$env:TEMP\install-hica.ps1"
+          "$env:LOCALAPPDATA\hica\bin" | Out-File -Append -FilePath $env:GITHUB_PATH
 
       - name: Verify tools
         run: |
           koka --version
           hica --version
+        shell: bash
 
       - name: Run tests
+        shell: bash
         run: |
           for f in tests/test_*.hc; do 
             echo "=== $f ==="
