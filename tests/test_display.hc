@@ -1,5 +1,4 @@
-import "../src/yaml_types"
-import "../src/display"
+import "../src/yaml"
 
 test "yaml_show bool lowercase" {
   assert(yaml_show(YBool(true)) == "true")

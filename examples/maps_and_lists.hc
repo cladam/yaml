@@ -1,9 +1,5 @@
 // examples/maps_and_lists.hc — Working with block maps and nested lists
-import "../src/yaml_types"
-import "../src/scalar"
-import "../src/parser"
-import "../src/api"
-import "../src/display"
+import "../src/yaml"
 
 fun main() {
   let content = read_file("examples/maps_and_lists.yml")

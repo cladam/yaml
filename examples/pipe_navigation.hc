@@ -1,8 +1,5 @@
 // examples/pipe_navigation.hc — Navigate nested YAML with the pipe API
-import "../src/yaml_types"
-import "../src/scalar"
-import "../src/parser"
-import "../src/api"
+import "../src/yaml"
 
 fun main() {
   let input = "database:\n  host: localhost\n  port: 5432\n  replicas:\n    - db1\n    - db2\napp:\n  name: myapp\n  debug: false"

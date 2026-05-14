@@ -1,9 +1,5 @@
 // examples/read_config.hc — Read and parse a YAML config file
-import "../src/yaml_types"
-import "../src/scalar"
-import "../src/parser"
-import "../src/api"
-import "../src/display"
+import "../src/yaml"
 
 fun main() {
   let content = read_file("examples/sample.yml")

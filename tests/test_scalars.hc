@@ -1,6 +1,4 @@
-import "../src/yaml_types"
-import "../src/scalar"
-import "../src/parser"
+import "../src/yaml"
 
 // --- Integer tests ---
 

@@ -1,7 +1,4 @@
-import "../src/yaml_types"
-import "../src/scalar"
-import "../src/parser"
-import "../src/api"
+import "../src/yaml"
 
 // --- Double-quoted escape sequences ---
 

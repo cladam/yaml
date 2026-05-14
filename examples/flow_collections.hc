@@ -1,9 +1,5 @@
 // examples/flow_collections.hc — Parse flow sequences and flow mappings
-import "../src/yaml_types"
-import "../src/scalar"
-import "../src/parser"
-import "../src/api"
-import "../src/display"
+import "../src/yaml"
 
 fun main() {
   // Flow sequences: inline lists

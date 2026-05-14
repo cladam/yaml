@@ -10,14 +10,10 @@ Add as a git submodule to your hica project:
 git submodule add https://github.com/cladam/yaml.git lib/yaml
 ```
 
-Then import the modules you need:
+Then import the library:
 
 ```hc
-import "./lib/yaml/src/yaml_types"
-import "./lib/yaml/src/scalar"
-import "./lib/yaml/src/parser"
-import "./lib/yaml/src/api"
-import "./lib/yaml/src/display"
+import "./lib/yaml/src/yaml"
 ```
 
 ## Supported YAML
