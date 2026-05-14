@@ -111,7 +111,7 @@ This library targets a practical subset — not full spec compliance.
 
 ## Tests
 
-- [x] 52 tests passing (28 scalar + 6 map + 7 list + 2 misc + 9 pipe API)
+- [x] 136 tests passing
 
 ---
 
