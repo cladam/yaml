@@ -16,6 +16,42 @@ pub fun is_float_str(s: string) : bool {
   }
 }
 
+// ============================================================
+// Escape sequence processing for double-quoted strings
+// ============================================================
+
+pub fun process_escapes(chars: list<string>) : string {
+  match chars {
+    [] => "",
+    ["\\", "n", ..rest] => "\n" + process_escapes(rest),
+    ["\\", "t", ..rest] => "\t" + process_escapes(rest),
+    ["\\", "\\", ..rest] => "\\" + process_escapes(rest),
+    ["\\", "\"", ..rest] => "\"" + process_escapes(rest),
+    ["\\", "/", ..rest] => "/" + process_escapes(rest),
+    ["\\", "r", ..rest] => "\r" + process_escapes(rest),
+    ["\\", "0", ..rest] => process_escapes(rest),
+    [c, ..rest] => c + process_escapes(rest)
+  }
+}
+
+pub fun unescape(s: string) : string =>
+  if str_length(s) == 0 { "" } else { process_escapes(s.split("")) }
+
+// ============================================================
+// Single-quote escape processing
+// ============================================================
+
+pub fun process_single_escapes(chars: list<string>) : string {
+  match chars {
+    [] => "",
+    ["'", "'", ..rest] => "'" + process_single_escapes(rest),
+    [c, ..rest] => c + process_single_escapes(rest)
+  }
+}
+
+pub fun unescape_single(s: string) : string =>
+  if str_length(s) == 0 { "" } else { process_single_escapes(s.split("")) }
+
 pub fun parse_scalar(s: string) : Yaml {
   let trimmed = trim(s)
 
@@ -23,10 +59,10 @@ pub fun parse_scalar(s: string) : Yaml {
     YNull
   }
   else if starts_with(trimmed, "\"") && ends_with(trimmed, "\"") && str_length(trimmed) >= 2 {
-    YStr(trimmed[1:str_length(trimmed) - 1])
+    YStr(unescape(trimmed[1:str_length(trimmed) - 1]))
   }
   else if starts_with(trimmed, "'") && ends_with(trimmed, "'") && str_length(trimmed) >= 2 {
-    YStr(trimmed[1:str_length(trimmed) - 1])
+    YStr(unescape_single(trimmed[1:str_length(trimmed) - 1]))
   }
   else if starts_with(trimmed, "-") && all_digits(trimmed[1:]) {
     match parse_int(trimmed) {

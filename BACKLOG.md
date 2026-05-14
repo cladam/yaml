@@ -25,8 +25,8 @@ This library targets a practical subset — not full spec compliance.
 ## Scalars (Ch. 7.3, 8.1)
 
 - [x] Plain (unquoted) scalars
-- [-] Double-quoted scalars (parsed, but no escape sequence processing)
-- [-] Single-quoted scalars (parsed, but no `''` escape handling)
+- [x] Double-quoted scalars (parsed, with escape sequence processing)
+- [x] Single-quoted scalars (parsed, with `''` escape handling)
 - [ ] Literal block scalars (`|`)
 - [ ] Folded block scalars (`>`)
 - [ ] Block chomping indicators (`-`, `+`)
@@ -42,7 +42,7 @@ This library targets a practical subset — not full spec compliance.
 - [x] Nested sequences
 - [x] Sequences under map keys (same-indent and indented)
 - [x] Mappings inside sequences
-- [ ] Compact nested mappings (after `-`)
+- [x] Compact nested mappings (after `-`)
 - [ ] Explicit mapping keys (`? key`)
 - [ ] Complex mapping keys (sequences/mappings as keys)
 
@@ -78,8 +78,8 @@ This library targets a practical subset — not full spec compliance.
 
 ## String Features
 
-- [ ] Escape sequences in double-quoted strings (`\n`, `\t`, `\\`, `\"`, `\x`, `\u`, `\U`)
-- [ ] Single-quote escaping (`''` → `'`)
+- [x] Escape sequences in double-quoted strings (`\n`, `\t`, `\\`, `\"`, `\x`, `\u`, `\U`)
+- [x] Single-quote escaping (`''` → `'`)
 - [ ] Line folding in flow scalars
 - [ ] Preserved newlines in literal blocks
 - [ ] Folded newlines in folded blocks

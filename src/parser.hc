@@ -9,6 +9,9 @@ import "./scalar"
 pub fun indent_of(line: string) : int =>
   str_length(line) - str_length(trim_start(line))
 
+pub fun make_indent(n: int) : string =>
+  if n <= 0 { "" } else { " " + make_indent(n - 1) }
+
 pub fun strip_comment(line: string) : string {
   match index_of(line, " #") {
     Some(i) => line[:i],
@@ -106,10 +109,13 @@ pub fun parse_list_entries(lines: list<string>, base_indent: int) : list<Yaml> {
         let val_str = list_item_value(line)
         let blk = collect_block(rest, base_indent)
         if length(blk.collected) > 0 && str_length(val_str) > 0 {
-          let sub_lines = [trim_start(line)[2:]] + blk.collected
+          let pad = make_indent(base_indent + 2)
+          let sub_lines = [pad + val_str] + blk.collected
           [parse_lines(sub_lines)] + parse_list_entries(blk.remaining, base_indent)
         } else if length(blk.collected) > 0 {
           [parse_lines(blk.collected)] + parse_list_entries(blk.remaining, base_indent)
+        } else if is_map_line(val_str) {
+          [YMap([(kv_key(val_str), parse_scalar(kv_val(val_str)))])] + parse_list_entries(rest, base_indent)
         } else {
           [parse_scalar(val_str)] + parse_list_entries(rest, base_indent)
         }

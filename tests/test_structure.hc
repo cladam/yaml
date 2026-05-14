@@ -63,11 +63,12 @@ test "trailing comma in flow sequence" {
   assert(b == Some("b"))
 }
 
+// Test with dot notation
 test "trailing comma in flow mapping" {
   let input = join(["data: ", "{", "x: 1, y: 2,", "}"], "")
-  let doc = yaml_parse(input) |> yaml_ok
-  let x = doc |> at("data") |> at("x") |> as_int
-  let y = doc |> at("data") |> at("y") |> as_int
+  let doc = yaml_parse(input).yaml_ok
+  let x = doc.at("data").at("x").as_int
+  let y = doc.at("data").at("y").as_int
   assert(x == Some(1))
   assert(y == Some(2))
 }
