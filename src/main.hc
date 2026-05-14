@@ -1,7 +1,4 @@
-import "./yaml_types"
-import "./scalar"
-import "./parser"
-import "./display"
+import "./yaml"
 
 fun main() {
   let content = read_file(".tbdflow.yml")

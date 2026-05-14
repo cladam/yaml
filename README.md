@@ -18,12 +18,15 @@ import "./lib/yaml/src/yaml"
 
 ## Supported YAML
 
-- **Scalars**: strings (bare, single-quoted, double-quoted), integers, floats, booleans, null
+- **Scalars**: strings (bare, single-quoted, double-quoted with escape sequences), integers (decimal, hex `0x`, octal `0o`), floats (decimal, scientific, `.inf`, `.nan`), booleans, null
 - **Block maps**: `key: value` with indentation nesting
-- **Block sequences**: `- item` lists
-- **Comments**: `# ignored`
-- **Nested structures**: maps in maps, lists in maps, maps in lists
-- **Empty collections**: `[]`
+- **Block sequences**: `- item` lists, compact nested mappings (`- name: foo`)
+- **Block scalars**: literal (`|`) and folded (`>`) with chomping (`-`, `+`)
+- **Flow collections**: sequences (`[a, b, c]`), mappings (`{key: val}`), nested, trailing commas
+- **Comments**: inline (`# ...`), full-line, inside flow collections
+- **Document markers**: `---` and `...` stripped automatically
+- **Duplicate keys**: last value wins
+- **Nested structures**: maps in maps, lists in maps, maps in lists, flow inside block
 
 ## API
 
@@ -49,7 +52,7 @@ yaml_parse(input: string) : result<Yaml, string>
 
 ### Pipe-friendly navigation
 
-Chain operations with `|>` to navigate nested YAML:
+Chain operations with `|>` or `.` to navigate nested YAML:
 
 ```rust
 let host = yaml_parse(input)
@@ -136,6 +139,8 @@ See the [examples/](examples/) directory for runnable programs:
 - [basic_parsing.hc](examples/basic_parsing.hc): Parse a YAML string and pretty-print it
 - [pipe_navigation.hc](examples/pipe_navigation.hc): Navigate nested values, use defaults, inspect structure
 - [read_config.hc](examples/read_config.hc): Read and parse a YAML file from disk
+- [maps_and_lists.hc](examples/maps_and_lists.hc): Block maps, nested maps, lists, structure inspection
+- [flow_collections.hc](examples/flow_collections.hc): Flow sequences, flow mappings, mixed block+flow
 
 Run an example:
 
@@ -147,25 +152,30 @@ hica run examples/basic_parsing.hc
 
 ```sh
 src/
-  yaml_types.hc   # Yaml type and BlockResult struct
-  scalar.hc       # Scalar value parsing
-  parser.hc       # Block parser and yaml_parse entry point
-  api.hc          # Accessors and pipe-friendly API
-  display.hc      # yaml_show and yaml_pretty
-  yaml.hc         # Barrel module (imports all)
-  main.hc         # Demo program
+  yaml.hc          # Barrel module — import this
+  yaml_types.hc    # Yaml type and BlockResult struct
+  scalar.hc        # Scalar value parsing (escapes, flow collections)
+  parser.hc        # Block parser, block scalars, yaml_parse entry point
+  api.hc           # Accessors and pipe-friendly API
+  display.hc       # yaml_show and yaml_pretty
+  main.hc          # Demo program
 examples/
   basic_parsing.hc
   pipe_navigation.hc
   read_config.hc
-  sample.yml
+  maps_and_lists.hc
+  flow_collections.hc
 tests/
   test_scalars.hc
   test_block_collections.hc
+  test_block_scalars.hc
   test_flow_collections.hc
-  test_errors.hc
-  test_display.hc
+  test_escapes_and_compact.hc
+  test_numbers_and_dedup.hc
+  test_structure.hc
   test_api.hc
+  test_display.hc
+  test_errors.hc
 ```
 
 ## License
