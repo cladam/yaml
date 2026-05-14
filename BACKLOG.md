@@ -49,10 +49,10 @@ This library targets a practical subset — not full spec compliance.
 ## Collections — Flow Style (Ch. 7.4)
 
 - [x] Empty flow sequence (`[]`)
-- [ ] Flow sequences (`[a, b, c]`)
-- [ ] Flow mappings (`{key: val}`)
-- [ ] Nested flow collections
-- [ ] Flow collections inside block collections
+- [x] Flow sequences (`[a, b, c]`)
+- [x] Flow mappings (`{key: val}`)
+- [x] Nested flow collections
+- [x] Flow collections inside block collections
 - [ ] Trailing commas in flow collections
 
 ## Comments (Ch. 6.6)
