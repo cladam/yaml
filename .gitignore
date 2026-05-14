@@ -2,3 +2,12 @@
 project-description.md
 # tbdflow intent log (local-only, never committed)
 .tbdflow-intent.json
+
+examples/*
+!examples/*.hc
+
+src/*
+!src/*.hc
+
+tests/*
+!tests/*.hc
