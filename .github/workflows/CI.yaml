@@ -38,9 +38,9 @@ jobs:
 
       - name: Run tests
         run: |
-          for f in tests/test_*.hc; do
+          for f in tests/test_*.hc; do 
             echo "=== $f ==="
-            hica test "$f"
+            hica test "$f" 2>&1 | grep -E 'passed|failed|error\['
           done
 
   release:
