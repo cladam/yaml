@@ -28,7 +28,7 @@ jobs:
 
       - name: Install Hica
         run: |
-          curl -sSL https://github.com/cladam/hica/releases/latest/download/install.sh | sh
+          curl -fsSL https://cladam.github.io/hica/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Verify tools
