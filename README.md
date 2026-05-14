@@ -12,7 +12,7 @@ git submodule add https://github.com/cladam/yaml.git lib/yaml
 
 Then import the library:
 
-```hc
+```rust
 import "./lib/yaml/src/yaml"
 ```
 
@@ -29,7 +29,7 @@ import "./lib/yaml/src/yaml"
 
 ### Types
 
-```hc
+```rust
 type Yaml {
   YStr(value: string),
   YInt(value: int),
@@ -43,7 +43,7 @@ type Yaml {
 
 ### Parsing
 
-```hc
+```rust
 yaml_parse(input: string) : result<Yaml, string>
 ```
 
@@ -51,7 +51,7 @@ yaml_parse(input: string) : result<Yaml, string>
 
 Chain operations with `|>` to navigate nested YAML:
 
-```hc
+```rust
 let host = yaml_parse(input)
   |> yaml_ok
   |> at("database")
@@ -59,6 +59,16 @@ let host = yaml_parse(input)
   |> as_str
 
 // host : maybe<string>
+```
+
+Hica supports Uniform Function Call Syntax (UFCS) with a dot-notation, the above can be written like this:
+
+```rust
+let host = yaml_parse(input)
+  .yaml_ok
+  .at("database")
+  .at("host")
+  .as_str
 ```
 
 | Function | Signature | Purpose |
@@ -75,7 +85,7 @@ let host = yaml_parse(input)
 
 ### Defaults
 
-```hc
+```rust
 let port = yaml_parse(input)
   |> yaml_ok
   |> at("database")
@@ -114,7 +124,7 @@ For when you already have a `Yaml` value (not wrapped in `maybe`):
 
 ### Display
 
-```hc
+```rust
 yaml_show(y: Yaml) : string        // compact one-line representation
 yaml_pretty(y: Yaml, indent: int) : string  // indented multi-line output
 ```
@@ -135,7 +145,7 @@ hica run examples/basic_parsing.hc
 
 ## Project structure
 
-```
+```sh
 src/
   yaml_types.hc   # Yaml type and BlockResult struct
   scalar.hc       # Scalar value parsing

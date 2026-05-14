@@ -238,6 +238,24 @@ pub fun parse_map_entries(lines: list<string>, base_indent: int) : list<(string,
 }
 
 // ============================================================
+// Duplicate key handling (last wins)
+// ============================================================
+
+pub fun dedup_entries(entries: list<(string, Yaml)>) : list<(string, Yaml)> {
+  match entries {
+    [] => [],
+    [(k, v), ..rest] => {
+      let filtered = filter(rest, (e) => e.0 != k)
+      if length(filtered) < length(rest) {
+        dedup_entries(rest)
+      } else {
+        [(k, v)] + dedup_entries(rest)
+      }
+    }
+  }
+}
+
+// ============================================================
 // Top-level dispatch
 // ============================================================
 
@@ -257,7 +275,7 @@ pub fun parse_lines(all_lines: list<string>) : Yaml {
       if is_list_line(first) {
         YList(parse_list_entries(all_lines, indent_of(first)))
       } else if is_map_line(first) {
-        YMap(parse_map_entries(all_lines, indent_of(first)))
+        YMap(dedup_entries(parse_map_entries(all_lines, indent_of(first))))
       } else {
         parse_scalar(first)
       }

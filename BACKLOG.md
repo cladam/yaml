@@ -15,9 +15,9 @@ This library targets a practical subset — not full spec compliance.
 
 - [x] Strings (plain scalars)
 - [x] Integers (base 10, with sign)
-- [ ] Integers (octal `0o7`, hex `0x3A`)
+- [x] Integers (octal `0o7`, hex `0x3A`)
 - [x] Floats (decimal, with sign)
-- [ ] Floats (scientific notation `1.2e3`, `.inf`, `-.inf`, `.nan`)
+- [x] Floats (scientific notation `1.2e3`, `.inf`, `-.inf`, `.nan`)
 - [x] Booleans (`true`/`false`, case-insensitive)
 - [x] Null (`null`, `~`)
 - [x] Null (empty value resolves to null)
@@ -94,7 +94,7 @@ This library targets a practical subset — not full spec compliance.
 
 - [x] Empty input detection
 - [ ] Indentation error reporting
-- [ ] Duplicate key detection
+- [x] Duplicate key detection
 - [ ] Malformed scalar reporting
 - [ ] Line number in error messages
 

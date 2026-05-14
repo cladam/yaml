@@ -52,6 +52,41 @@ pub fun process_single_escapes(chars: list<string>) : string {
 pub fun unescape_single(s: string) : string =>
   if str_length(s) == 0 { "" } else { process_single_escapes(s.split("")) }
 
+pub fun is_octal_str(s: string) : bool =>
+  starts_with(s, "0o") && str_length(s) > 2 && all(s[2:].split(""), (c) => contains("01234567", c))
+
+pub fun is_hex_str(s: string) : bool =>
+  starts_with(to_lower(s), "0x") && str_length(s) > 2
+
+pub fun parse_octal(s: string) : int =>
+  parse_octal_acc(s[2:].split(""), 0)
+
+pub fun parse_octal_acc(chars: list<string>, acc: int) : int {
+  match chars {
+    [] => acc,
+    [c, ..rest] => {
+      match parse_int(c) {
+        Some(d) => parse_octal_acc(rest, acc * 8 + d),
+        None => acc
+      }
+    }
+  }
+}
+
+pub fun is_sci_float(s: string) : bool {
+  let low = to_lower(s)
+  let body = if starts_with(low, "-") || starts_with(low, "+") { low[1:] } else { low }
+  match index_of(body, "e") {
+    Some(i) => i > 0 && is_digit_str(body[:1]),
+    None => false
+  }
+}
+
+pub fun is_special_float(s: string) : bool {
+  let low = to_lower(s)
+  low == ".inf" || low == "-.inf" || low == "+.inf" || low == ".nan"
+}
+
 pub fun parse_scalar(s: string) : Yaml {
   let trimmed = trim(s)
 
@@ -63,6 +98,15 @@ pub fun parse_scalar(s: string) : Yaml {
   }
   else if starts_with(trimmed, "'") && ends_with(trimmed, "'") && str_length(trimmed) >= 2 {
     YStr(unescape_single(trimmed[1:str_length(trimmed) - 1]))
+  }
+  else if is_hex_str(trimmed) {
+    match parse_int(trimmed) {
+      Some(n) => YInt(n),
+      None => YStr(trimmed)
+    }
+  }
+  else if is_octal_str(trimmed) {
+    YInt(parse_octal(trimmed))
   }
   else if starts_with(trimmed, "-") && all_digits(trimmed[1:]) {
     match parse_int(trimmed) {
@@ -76,6 +120,21 @@ pub fun parse_scalar(s: string) : Yaml {
     }
   }
   else if is_float_str(trimmed) {
+    match parse_float(trimmed) {
+      Some(f) => YFloat(f),
+      None => YStr(trimmed)
+    }
+  }
+  else if is_special_float(trimmed) {
+    let low = to_lower(trimmed)
+    let one = 1.0
+    let neg_one = 0.0 - 1.0
+    let zero = 0.0
+    if low == ".nan" { YFloat(zero / zero) }
+    else if low == ".inf" || low == "+.inf" { YFloat(one / zero) }
+    else { YFloat(neg_one / zero) }
+  }
+  else if is_sci_float(trimmed) {
     match parse_float(trimmed) {
       Some(f) => YFloat(f),
       None => YStr(trimmed)
