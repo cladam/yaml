@@ -65,14 +65,14 @@ This library targets a practical subset — not full spec compliance.
 ## Structure (Ch. 6, 9)
 
 - [x] Document markers (`---`, `...`)
-- [ ] Multi-document streams
+- [x] Multi-document streams
 - [ ] Directives (`%YAML`, `%TAG`)
 - [ ] Byte order mark handling
 
 ## Node Properties (Ch. 6.9)
 
-- [ ] Anchors (`&name`)
-- [ ] Aliases (`*name`)
+- [x] Anchors (`&name`)
+- [x] Aliases (`*name`)
 - [ ] Tags (`!!str`, `!!int`, `!local`, etc.)
 - [ ] Verbatim tags (`!<uri>`)
 
@@ -87,7 +87,7 @@ This library targets a practical subset — not full spec compliance.
 ## Whitespace & Indentation (Ch. 6.1–6.5)
 
 - [x] Space-based indentation detection
-- [ ] Tab rejection in indentation (tabs currently not handled)
+- [x] Tab rejection in indentation
 - [ ] Empty line handling inside scalars
 
 ## Error Handling

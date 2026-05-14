@@ -26,7 +26,10 @@ import "./lib/yaml/src/yaml"
 - **Flow collections**: sequences (`[a, b, c]`), mappings (`{key: val}`), nested, trailing commas
 - **Comments**: inline (`# ...`), full-line, inside flow collections
 - **Document markers**: `---` and `...` stripped automatically
+- **Multi-document streams**: `yaml_parse_all` returns all documents
+- **Anchors & aliases**: `&name` anchors and `*name` references
 - **Duplicate keys**: last value wins
+- **Tab rejection**: tabs in indentation produce clear errors
 - **Nested structures**: maps in maps, lists in maps, maps in lists, flow inside block
 
 ## API
@@ -48,7 +51,8 @@ type Yaml {
 ### Parsing
 
 ```rust
-yaml_parse(input: string) : result<Yaml, string>
+yaml_parse(input: string) : result<Yaml, string>      // first document
+yaml_parse_all(input: string) : result<list<Yaml>, string>  // all documents
 ```
 
 ### Pipe-friendly navigation
@@ -174,6 +178,7 @@ tests/
   test_escapes_and_compact.hc
   test_numbers_and_dedup.hc
   test_multiline.hc
+  test_documents.hc
   test_structure.hc
   test_api.hc
   test_display.hc

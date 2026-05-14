@@ -60,6 +60,8 @@ pub fun is_plain_value(s: string) : bool {
     && !starts_with(t, "'")
     && !starts_with(t, "[")
     && !starts_with(t, "{")
+    && !starts_with(t, "&")
+    && !starts_with(t, "*")
     && !is_block_scalar_indicator(t)
 }
 
@@ -75,15 +77,13 @@ pub fun collect_quoted(lines: list<string>, base_indent: int, quote: string) : B
   match lines {
     [] => BlockResult { collected: [], remaining: [] },
     [line, ..rest] => {
-      if indent_of(line) > base_indent {
-        if ends_with(trim(line), quote) {
-          BlockResult { collected: [line], remaining: rest }
-        } else {
-          let inner = collect_quoted(rest, base_indent, quote)
-          BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
-        }
-      } else {
+      if indent_of(line) <= base_indent {
         BlockResult { collected: [], remaining: lines }
+      } else if ends_with(trim(line), quote) {
+        BlockResult { collected: [line], remaining: rest }
+      } else {
+        let inner = collect_quoted(rest, base_indent, quote)
+        BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
       }
     }
   }
@@ -97,17 +97,18 @@ pub fun join_multiline(first: string, lines: list<string>) : string {
 pub fun block_indent_number(indicator: string) : int {
   let t = trim(indicator)
   let rest = t[1:]
-  if str_length(rest) == 0 { 0 }
-  else if str_length(rest) == 1 {
-    if is_digit_str(rest) {
-      match parse_int(rest) { Some(n) => n, None => 0 }
-    } else { 0 }
+  if str_length(rest) == 0 {
+    0
+  } else if str_length(rest) == 1 && is_digit_str(rest) {
+    match parse_int(rest) { Some(n) => n, None => 0 }
+  } else if str_length(rest) == 1 {
+    0
+  } else if str_length(rest) >= 2 && is_digit_str(rest[:1]) {
+    match parse_int(rest[:1]) { Some(n) => n, None => 0 }
+  } else if str_length(rest) >= 2 && is_digit_str(rest[1:]) {
+    match parse_int(rest[1:]) { Some(n) => n, None => 0 }
   } else {
-    if is_digit_str(rest[:1]) {
-      match parse_int(rest[:1]) { Some(n) => n, None => 0 }
-    } else if is_digit_str(rest[1:]) {
-      match parse_int(rest[1:]) { Some(n) => n, None => 0 }
-    } else { 0 }
+    0
   }
 }
 
@@ -195,16 +196,16 @@ pub fun parse_list_entries(lines: list<string>, base_indent: int) : list<Yaml> {
           }
         } else {
           let blk = collect_block(rest, base_indent)
-          if length(blk.collected) > 0 && str_length(val_str) > 0 {
-            if is_map_line(val_str) {
-              let pad = make_indent(base_indent + 2)
-              let sub_lines = [pad + val_str] + blk.collected
-              [parse_lines(sub_lines)] + parse_list_entries(blk.remaining, base_indent)
-            } else {
-              let parts = [val_str] + map(blk.collected, (l) => trim(l))
-              [YStr(join(parts, " "))] + parse_list_entries(blk.remaining, base_indent)
-            }
-          } else if length(blk.collected) > 0 {
+          let has_block = length(blk.collected) > 0
+          let has_val = str_length(val_str) > 0
+          if has_block && has_val && is_map_line(val_str) {
+            let pad = make_indent(base_indent + 2)
+            let sub_lines = [pad + val_str] + blk.collected
+            [parse_lines(sub_lines)] + parse_list_entries(blk.remaining, base_indent)
+          } else if has_block && has_val {
+            let parts = [val_str] + map(blk.collected, (l) => trim(l))
+            [YStr(join(parts, " "))] + parse_list_entries(blk.remaining, base_indent)
+          } else if has_block {
             [parse_lines(blk.collected)] + parse_list_entries(blk.remaining, base_indent)
           } else if is_map_line(val_str) {
             [YMap([(kv_key(val_str), parse_scalar(kv_val(val_str)))])] + parse_list_entries(rest, base_indent)
@@ -314,30 +315,35 @@ pub fun parse_map_entries(lines: list<string>, base_indent: int) : list<(string,
     [line, ..rest] => {
       if indent_of(line) == base_indent && is_map_line(line) {
         let key = kv_key(line)
-        let val_str = kv_val(line)
+        let raw_val = kv_val(line)
+        let anchor_info = strip_anchor(raw_val)
+        let val_anchor = anchor_info.0
+        let val_after = anchor_info.1
+        let val_str = if str_length(val_anchor) > 0 { val_after } else { raw_val }
+        let emit_key = if str_length(val_anchor) > 0 { "__anchor:" + val_anchor + ":" + key } else { key }
         if is_block_scalar_indicator(val_str) {
           let blk = collect_block(rest, base_indent)
-          [(key, block_scalar_join(blk.collected, val_str, base_indent))] + parse_map_entries(blk.remaining, base_indent)
+          [(emit_key, block_scalar_join(blk.collected, val_str, base_indent))] + parse_map_entries(blk.remaining, base_indent)
         } else if str_length(val_str) > 0 {
           if is_open_quoted(val_str) {
             let quote = val_str[:1]
             let cont = collect_quoted(rest, base_indent, quote)
             if length(cont.collected) > 0 {
               let full = join_multiline(val_str, cont.collected)
-              [(key, parse_scalar(full))] + parse_map_entries(cont.remaining, base_indent)
+              [(emit_key, parse_scalar(full))] + parse_map_entries(cont.remaining, base_indent)
             } else {
-              [(key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
+              [(emit_key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
             }
           } else if is_plain_value(val_str) {
             let cont = collect_block(rest, base_indent)
             if length(cont.collected) > 0 {
               let parts = [val_str] + map(cont.collected, (l) => trim(l))
-              [(key, YStr(join(parts, " ")))] + parse_map_entries(cont.remaining, base_indent)
+              [(emit_key, YStr(join(parts, " ")))] + parse_map_entries(cont.remaining, base_indent)
             } else {
-              [(key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
+              [(emit_key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
             }
           } else {
-            [(key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
+            [(emit_key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
           }
         } else {
           let is_next_list = match rest {
@@ -346,12 +352,12 @@ pub fun parse_map_entries(lines: list<string>, base_indent: int) : list<(string,
           }
           if is_next_list {
             let blk = collect_list_block(rest, base_indent)
-            [(key, parse_lines(blk.collected))] + parse_map_entries(blk.remaining, base_indent)
+            [(emit_key, parse_lines(blk.collected))] + parse_map_entries(blk.remaining, base_indent)
           } else if length(rest) > 0 {
             let blk = collect_block(rest, base_indent)
-            [(key, parse_lines(blk.collected))] + parse_map_entries(blk.remaining, base_indent)
+            [(emit_key, parse_lines(blk.collected))] + parse_map_entries(blk.remaining, base_indent)
           } else {
-            [(key, YNull)]
+            [(emit_key, YNull)]
           }
         }
       } else {
@@ -408,6 +414,198 @@ pub fun parse_lines(all_lines: list<string>) : Yaml {
 }
 
 // ============================================================
+// Tab rejection
+// ============================================================
+
+pub fun line_has_tab_indent(l: string) : bool {
+  let ind = indent_of(l)
+  if ind == 0 { false }
+  else { contains(l[:ind], "\t") }
+}
+
+pub fun check_tabs(input: string) : bool {
+  let lines = split(input, "\n")
+  any(lines, (l) => line_has_tab_indent(l))
+}
+
+// ============================================================
+// Anchor & alias support
+// ============================================================
+
+pub fun strip_anchor(s: string) : (string, string) {
+  let t = trim(s)
+  if starts_with(t, "&") {
+    match index_of(t, " ") {
+      Some(i) => (t[1:i], trim(t[i + 1:])),
+      None => (t[1:], "")
+    }
+  } else {
+    ("", t)
+  }
+}
+
+pub fun is_alias(s: string) : bool {
+  let t = trim(s)
+  starts_with(t, "*") && str_length(t) > 1
+}
+
+pub fun alias_name(s: string) : string {
+  let t = trim(s)
+  t[1:]
+}
+
+pub fun resolve_alias(name: string, anchors: list<(string, Yaml)>) : Yaml {
+  match find(anchors, (e) => e.0 == name) {
+    Some(pair) => pair.1,
+    None => YStr("*" + name)
+  }
+}
+
+pub fun resolve_anchors(y: Yaml, anchors: list<(string, Yaml)>) : (Yaml, list<(string, Yaml)>) {
+  match y {
+    YMap(entries) => {
+      let result = resolve_map_anchors(entries, anchors)
+      (YMap(result.0), result.1)
+    },
+    YList(items) => {
+      let result = resolve_list_anchors(items, anchors)
+      (YList(result.0), result.1)
+    },
+    _ => (y, anchors)
+  }
+}
+
+pub fun resolve_map_anchors(entries: list<(string, Yaml)>, anchors: list<(string, Yaml)>) : (list<(string, Yaml)>, list<(string, Yaml)>) {
+  match entries {
+    [] => ([], anchors),
+    [(k, v), ..rest] => {
+      let key_anchor = extract_key_anchor(k)
+      let anchor_name = key_anchor.0
+      let clean_key = key_anchor.1
+      let resolved_val = match v {
+        YStr(s) => {
+          if is_alias(s) {
+            ("", resolve_alias(alias_name(s), anchors))
+          } else {
+            let val_anchor = strip_anchor(s)
+            if str_length(val_anchor.0) > 0 {
+              (val_anchor.0, parse_scalar(val_anchor.1))
+            } else { ("", v) }
+          }
+        },
+        _ => ("", v)
+      }
+      let effective_anchor = if str_length(anchor_name) > 0 { anchor_name } else { resolved_val.0 }
+      let val_resolved = resolved_val.1
+      let inner = resolve_anchors(val_resolved, anchors)
+      let final_val = inner.0
+      let new_anchors = if str_length(effective_anchor) > 0 {
+        inner.1 + [(effective_anchor, final_val)]
+      } else { inner.1 }
+      let rest_result = resolve_map_anchors(rest, new_anchors)
+      ([(clean_key, final_val)] + rest_result.0, rest_result.1)
+    }
+  }
+}
+
+pub fun extract_key_anchor(k: string) : (string, string) {
+  if starts_with(k, "__anchor:") {
+    let after = k[9:]
+    match index_of(after, ":") {
+      Some(i) => (after[:i], after[i + 1:]),
+      None => ("", k)
+    }
+  } else {
+    ("", k)
+  }
+}
+
+pub fun resolve_list_anchors(items: list<Yaml>, anchors: list<(string, Yaml)>) : (list<Yaml>, list<(string, Yaml)>) {
+  match items {
+    [] => ([], anchors),
+    [item, ..rest] => {
+      let resolved = match item {
+        YStr(s) => {
+          if is_alias(s) {
+            resolve_alias(alias_name(s), anchors)
+          } else {
+            let val_anchor = strip_anchor(s)
+            if str_length(val_anchor.0) > 0 {
+              parse_scalar(val_anchor.1)
+            } else { item }
+          }
+        },
+        _ => item
+      }
+      let inner = resolve_anchors(resolved, anchors)
+      let rest_result = resolve_list_anchors(rest, inner.1)
+      ([inner.0] + rest_result.0, rest_result.1)
+    }
+  }
+}
+
+// ============================================================
+// Multi-document streams
+// ============================================================
+
+pub fun split_documents(input: string) : list<string> {
+  let lines = split(input, "\n")
+  split_docs_acc(lines, [], [])
+}
+
+pub fun split_docs_acc(lines: list<string>, current: list<string>, docs: list<string>) : list<string> {
+  match lines {
+    [] => {
+      let doc = join(current, "\n")
+      if str_length(trim(doc)) > 0 { docs + [doc] } else { docs }
+    },
+    [line, ..rest] => {
+      if trim(line) == "---" {
+        let doc = join(current, "\n")
+        if str_length(trim(doc)) > 0 {
+          split_docs_acc(rest, [], docs + [doc])
+        } else {
+          split_docs_acc(rest, [], docs)
+        }
+      } else if trim(line) == "..." {
+        let doc = join(current, "\n")
+        if str_length(trim(doc)) > 0 {
+          split_docs_acc(rest, [], docs + [doc])
+        } else {
+          split_docs_acc(rest, [], docs)
+        }
+      } else {
+        split_docs_acc(rest, current + [line], docs)
+      }
+    }
+  }
+}
+
+pub fun parse_single_doc(input: string) : result<Yaml, string> {
+  let ls = prepare_lines(input)
+  if length(ls) == 0 {
+    Err("empty input")
+  } else {
+    let parsed = parse_lines(ls)
+    let resolved = resolve_anchors(parsed, [])
+    Ok(resolved.0)
+  }
+}
+
+pub fun take_first_doc(lines: list<string>, started: bool) : list<string> {
+  match lines {
+    [] => [],
+    [line, ..rest] => {
+      let t = trim(line)
+      let is_sep = t == "---" || t == "..."
+      if is_sep && started { [] }
+      else if is_sep { take_first_doc(rest, true) }
+      else { [line] + take_first_doc(rest, true) }
+    }
+  }
+}
+
+// ============================================================
 // Public entry point
 // ============================================================
 
@@ -415,12 +613,56 @@ pub fun yaml_parse(input: string) : result<Yaml, string> {
   let trimmed = trim(input)
   if str_length(trimmed) == 0 {
     Err("empty input")
+  } else if check_tabs(input) {
+    Err("tabs are not allowed in YAML indentation")
   } else {
-    let ls = prepare_lines(input)
+    let raw_lines = split(input, "\n")
+    let first_doc = take_first_doc(raw_lines, false)
+    let doc_str = join(first_doc, "\n")
+    let ls = prepare_lines(doc_str)
     if length(ls) == 0 {
       Err("empty input")
     } else {
-      Ok(parse_lines(ls))
+      let parsed = parse_lines(ls)
+      let resolved = resolve_anchors(parsed, [])
+      Ok(resolved.0)
+    }
+  }
+}
+
+pub fun collect_errors(results: list<result<Yaml, string>>) : list<string> {
+  match results {
+    [] => [],
+    [Err(msg), ..rest] => [msg] + collect_errors(rest),
+    [_, ..rest] => collect_errors(rest)
+  }
+}
+
+pub fun collect_values(results: list<result<Yaml, string>>) : list<Yaml> {
+  match results {
+    [] => [],
+    [Ok(v), ..rest] => [v] + collect_values(rest),
+    [_, ..rest] => collect_values(rest)
+  }
+}
+
+pub fun yaml_parse_all(input: string) : result<list<Yaml>, string> {
+  let trimmed = trim(input)
+  if str_length(trimmed) == 0 {
+    Err("empty input")
+  } else if check_tabs(input) {
+    Err("tabs are not allowed in YAML indentation")
+  } else {
+    let docs = split_documents(input)
+    if length(docs) == 0 {
+      Err("empty input")
+    } else {
+      let results = map(docs, (d) => parse_single_doc(d))
+      let errs = collect_errors(results)
+      match errs {
+        [msg, ..] => Err(msg),
+        [] => Ok(collect_values(results))
+      }
     }
   }
 }
