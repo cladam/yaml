@@ -19,7 +19,10 @@ pub fun is_float_str(s: string) : bool {
 pub fun parse_scalar(s: string) : Yaml {
   let trimmed = trim(s)
 
-  if starts_with(trimmed, "\"") && ends_with(trimmed, "\"") && str_length(trimmed) >= 2 {
+  if str_length(trimmed) == 0 {
+    YNull
+  }
+  else if starts_with(trimmed, "\"") && ends_with(trimmed, "\"") && str_length(trimmed) >= 2 {
     YStr(trimmed[1:str_length(trimmed) - 1])
   }
   else if starts_with(trimmed, "'") && ends_with(trimmed, "'") && str_length(trimmed) >= 2 {

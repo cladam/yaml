@@ -16,10 +16,16 @@ pub fun strip_comment(line: string) : string {
   }
 }
 
+pub fun is_doc_marker(line: string) : bool {
+  let trimmed = trim(line)
+  trimmed == "---" || trimmed == "..."
+}
+
 pub fun prepare_lines(input: string) : list<string> {
   split(input, "\n")
     |> map((l) => strip_comment(l))
     |> filter((l) => str_length(trim(l)) > 0)
+    |> filter((l) => !is_doc_marker(l))
 }
 
 pub fun is_list_line(line: string) : bool =>

@@ -20,7 +20,7 @@ This library targets a practical subset — not full spec compliance.
 - [ ] Floats (scientific notation `1.2e3`, `.inf`, `-.inf`, `.nan`)
 - [x] Booleans (`true`/`false`, case-insensitive)
 - [x] Null (`null`, `~`)
-- [ ] Null (empty value resolves to null)
+- [x] Null (empty value resolves to null)
 
 ## Scalars (Ch. 7.3, 8.1)
 
@@ -53,7 +53,7 @@ This library targets a practical subset — not full spec compliance.
 - [x] Flow mappings (`{key: val}`)
 - [x] Nested flow collections
 - [x] Flow collections inside block collections
-- [ ] Trailing commas in flow collections
+- [x] Trailing commas in flow collections
 
 ## Comments (Ch. 6.6)
 
@@ -64,7 +64,7 @@ This library targets a practical subset — not full spec compliance.
 
 ## Structure (Ch. 6, 9)
 
-- [ ] Document markers (`---`, `...`)
+- [x] Document markers (`---`, `...`)
 - [ ] Multi-document streams
 - [ ] Directives (`%YAML`, `%TAG`)
 - [ ] Byte order mark handling
