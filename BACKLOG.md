@@ -27,9 +27,9 @@ This library targets a practical subset — not full spec compliance.
 - [x] Plain (unquoted) scalars
 - [x] Double-quoted scalars (parsed, with escape sequence processing)
 - [x] Single-quoted scalars (parsed, with `''` escape handling)
-- [ ] Literal block scalars (`|`)
-- [ ] Folded block scalars (`>`)
-- [ ] Block chomping indicators (`-`, `+`)
+- [x] Literal block scalars (`|`)
+- [x] Folded block scalars (`>`)
+- [x] Block chomping indicators (`-`, `+`)
 - [ ] Block indentation indicators
 - [ ] Multi-line plain scalars (line folding)
 - [ ] Multi-line quoted scalars
@@ -59,7 +59,7 @@ This library targets a practical subset — not full spec compliance.
 
 - [x] Inline comments (`key: val # comment`)
 - [x] Full-line comments (`# comment`)
-- [ ] Comments in flow collections
+- [x] Comments in flow collections
 - [ ] Comments between multi-line scalars
 
 ## Structure (Ch. 6, 9)
@@ -81,8 +81,8 @@ This library targets a practical subset — not full spec compliance.
 - [x] Escape sequences in double-quoted strings (`\n`, `\t`, `\\`, `\"`, `\x`, `\u`, `\U`)
 - [x] Single-quote escaping (`''` → `'`)
 - [ ] Line folding in flow scalars
-- [ ] Preserved newlines in literal blocks
-- [ ] Folded newlines in folded blocks
+- [x] Preserved newlines in literal blocks
+- [x] Folded newlines in folded blocks
 
 ## Whitespace & Indentation (Ch. 6.1–6.5)
 
