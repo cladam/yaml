@@ -1,0 +1,42 @@
+name: CI
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Koka
+        run: |
+          curl -sSL https://github.com/koka-lang/koka/releases/latest/download/install.sh | sudo sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Hica
+        run: |
+          curl -sSL https://github.com/cladam/hica/releases/latest/download/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify tools
+        run: |
+          koka --version
+          hica --version
+
+      - name: Run tests
+        run: |
+          for f in tests/test_*.hc; do
+            echo "=== $f ==="
+            hica test "$f"
+          done
