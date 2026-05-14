@@ -1,0 +1,10 @@
+colour:
+  colours: [red, green, blue]
+  favourite: "purple"
+  counts: [1, 2, 3]
+
+server: {host: localhost, port: 8080}
+
+matrix:
+  - [1, 2, 3]
+  - [4, 5, 6]
