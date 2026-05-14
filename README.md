@@ -1,10 +1,10 @@
 # yaml
 
-A YAML subset parser library for [Hica](https://github.com/cladam/hica). Parses the YAML that real-world config files actually use: maps, lists, scalars, comments, and nesting.
+A YAML subset parser library for [hica](https://github.com/cladam/hica). Parses the YAML that real-world config files actually use: maps, lists, scalars, comments, and nesting.
 
 ## Installation
 
-Add as a git submodule to your Hica project:
+Add as a git submodule to your hica project:
 
 ```sh
 git submodule add https://github.com/cladam/yaml.git lib/yaml
@@ -123,35 +123,18 @@ yaml_show(y: Yaml) : string        // compact one-line representation
 yaml_pretty(y: Yaml, indent: int) : string  // indented multi-line output
 ```
 
-## Example
+## Examples
 
-```hc
-import "./lib/yaml/src/yaml_types"
-import "./lib/yaml/src/scalar"
-import "./lib/yaml/src/parser"
-import "./lib/yaml/src/api"
-import "./lib/yaml/src/display"
+See the [examples/](examples/) directory for runnable programs:
 
-fun main() {
-  let input = read_file("config.yml")
-  match input {
-    Ok(text) => {
-      match yaml_parse(text) {
-        Ok(doc) => {
-          println(yaml_pretty(doc, 0))
+- [basic_parsing.hc](examples/basic_parsing.hc): Parse a YAML string and pretty-print it
+- [pipe_navigation.hc](examples/pipe_navigation.hc): Navigate nested values, use defaults, inspect structure
+- [read_config.hc](examples/read_config.hc): Read and parse a YAML file from disk
 
-          let name = yaml_parse(text) |> yaml_ok |> at("name") |> as_str
-          match name {
-            Some(n) => println("Project: {n}"),
-            None => println("no name field")
-          }
-        },
-        Err(e) => println("Parse error: {e}")
-      }
-    },
-    Err(e) => println("File error: {e}")
-  }
-}
+Run an example:
+
+```sh
+hica run examples/basic_parsing.hc
 ```
 
 ## Project structure
@@ -165,6 +148,11 @@ src/
   display.hc      # yaml_show and yaml_pretty
   yaml.hc         # Barrel module (imports all)
   main.hc         # Demo program
+examples/
+  basic_parsing.hc
+  pipe_navigation.hc
+  read_config.hc
+  sample.yml
 tests/
   test_scalars.hc
   test_block_collections.hc
