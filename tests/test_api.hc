@@ -1,4 +1,7 @@
-import "../src/yaml"
+import "../src/yaml_types"
+import "../src/scalar"
+import "../src/parser"
+import "../src/api"
 
 // --- Pipe navigation ---
 
