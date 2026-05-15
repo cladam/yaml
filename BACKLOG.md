@@ -96,7 +96,7 @@ This library targets a practical subset — not full spec compliance.
 - [ ] Indentation error reporting
 - [x] Duplicate key detection
 - [ ] Malformed scalar reporting
-- [ ] Line number in error messages
+- [x] Line number in error messages
 
 ## API
 
@@ -107,11 +107,11 @@ This library targets a practical subset — not full spec compliance.
 - [x] Inspection: `has_key`, `keys`, `yaml_length`
 - [x] Display: `yaml_show`, `yaml_pretty`
 - [ ] Serialization (emit/dump YAML from data)
-- [ ] `yaml_parse_file(path)` convenience
+- [x] `yaml_parse_file(path)` convenience
 
 ## Tests
 
-- [x] 136 tests passing
+- [x] 140 tests passing
 
 ---
 

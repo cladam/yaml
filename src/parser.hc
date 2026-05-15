@@ -428,6 +428,17 @@ pub fun check_tabs(input: string) : bool {
   any(lines, (l) => line_has_tab_indent(l))
 }
 
+pub fun find_tab_line(input: string) : int {
+  find_tab_line_acc(split(input, "\n"), 1)
+}
+
+pub fun find_tab_line_acc(lines: list<string>, n: int) : int {
+  match lines {
+    [] => 0,
+    [l, ..rest] => if line_has_tab_indent(l) { n } else { find_tab_line_acc(rest, n + 1) }
+  }
+}
+
 // ============================================================
 // Anchor & alias support
 // ============================================================
@@ -614,7 +625,7 @@ pub fun yaml_parse(input: string) : result<Yaml, string> {
   if str_length(trimmed) == 0 {
     Err("empty input")
   } else if check_tabs(input) {
-    Err("tabs are not allowed in YAML indentation")
+    Err("line " + show(find_tab_line(input)) + ": tabs are not allowed in YAML indentation")
   } else {
     let raw_lines = split(input, "\n")
     let first_doc = take_first_doc(raw_lines, false)
@@ -627,6 +638,13 @@ pub fun yaml_parse(input: string) : result<Yaml, string> {
       let resolved = resolve_anchors(parsed, [])
       Ok(resolved.0)
     }
+  }
+}
+
+pub fun yaml_parse_file(path: string) {
+  match read_file(path) {
+    Ok(text) => yaml_parse(text),
+    Err(e) => Err(e)
   }
 }
 
@@ -651,7 +669,7 @@ pub fun yaml_parse_all(input: string) : result<list<Yaml>, string> {
   if str_length(trimmed) == 0 {
     Err("empty input")
   } else if check_tabs(input) {
-    Err("tabs are not allowed in YAML indentation")
+    Err("line " + show(find_tab_line(input)) + ": tabs are not allowed in YAML indentation")
   } else {
     let docs = split_documents(input)
     if length(docs) == 0 {
