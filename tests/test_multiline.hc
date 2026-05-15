@@ -111,3 +111,33 @@ test "block scalar in list alongside plain items" {
   assert(b == Some("line1\nline2\n"))
   assert(c == Some("third"))
 }
+
+// --- Flow scalar line folding ---
+
+test "double-quoted flow scalar blank line folds to newline" {
+  let input = "key: \"line one\n\n  line two\""
+  let doc = yaml_parse(input) |> yaml_ok
+  let val = doc |> at("key") |> as_str
+  assert(val == Some("line one\nline two"))
+}
+
+test "single-quoted flow scalar blank line folds to newline" {
+  let input = "key: 'line one\n\n  line two'"
+  let doc = yaml_parse(input) |> yaml_ok
+  let val = doc |> at("key") |> as_str
+  assert(val == Some("line one\nline two"))
+}
+
+test "double-quoted flow scalar multiple blank lines" {
+  let input = "key: \"first\n\n\n  second\""
+  let doc = yaml_parse(input) |> yaml_ok
+  let val = doc |> at("key") |> as_str
+  assert(val == Some("first\n\nsecond"))
+}
+
+test "flow scalar in list with blank line" {
+  let input = "- \"hello\n\n  world\""
+  let doc = yaml_parse(input) |> yaml_ok
+  let val = doc |> nth(0) |> as_str
+  assert(val == Some("hello\nworld"))
+}

@@ -119,9 +119,57 @@ pub fun resolve_explicit_keys(lines: list<string>) : list<string> {
   }
 }
 
+// ============================================================
+// Pre-join multi-line flow scalars
+// ============================================================
+
+pub fun line_value_part(line: string) : string {
+  let t = trim(line)
+  if starts_with(t, "- ") {
+    trim(t[2:])
+  } else {
+    match index_of(t, ": ") {
+      Some(i) => trim(t[i + 2:]),
+      None => t
+    }
+  }
+}
+
+pub fun flow_scalar_collect(lines: list<string>, quote: string) : BlockResult {
+  match lines {
+    [] => BlockResult { collected: [], remaining: [] },
+    [line, ..rest] => {
+      if ends_with(trim(line), quote) {
+        BlockResult { collected: [line], remaining: rest }
+      } else {
+        let inner = flow_scalar_collect(rest, quote)
+        BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
+      }
+    }
+  }
+}
+
+pub fun prejoin_flow_scalars(lines: list<string>) : list<string> {
+  match lines {
+    [] => [],
+    [line, ..rest] => {
+      let val = line_value_part(line)
+      if is_open_quoted(val) {
+        let quote = trim(val)[:1]
+        let result = flow_scalar_collect(rest, quote)
+        let full = join_multiline(line, result.collected)
+        [full] + prejoin_flow_scalars(result.remaining)
+      } else {
+        [line] + prejoin_flow_scalars(rest)
+      }
+    }
+  }
+}
+
 pub fun prepare_lines(input: string) : list<string> {
   let raw = split(input, "\n")
     |> map((l) => strip_comment(l))
+    |> prejoin_flow_scalars
     |> filter((l) => str_length(trim(l)) > 0)
     |> filter((l) => !is_doc_marker(l))
     |> filter((l) => !is_directive(l))
@@ -162,7 +210,10 @@ pub fun collect_quoted(lines: list<string>, base_indent: int, quote: string) : B
   match lines {
     [] => BlockResult { collected: [], remaining: [] },
     [line, ..rest] => {
-      if indent_of(line) <= base_indent {
+      if str_length(trim(line)) == 0 {
+        let inner = collect_quoted(rest, base_indent, quote)
+        BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
+      } else if indent_of(line) <= base_indent {
         BlockResult { collected: [], remaining: lines }
       } else if ends_with(trim(line), quote) {
         BlockResult { collected: [line], remaining: rest }
@@ -174,9 +225,20 @@ pub fun collect_quoted(lines: list<string>, base_indent: int, quote: string) : B
   }
 }
 
-pub fun join_multiline(first: string, lines: list<string>) : string {
-  let parts = [first] + map(lines, (l) => trim(l))
-  join(parts, " ")
+pub fun join_multiline(acc: string, lines: list<string>) : string {
+  match lines {
+    [] => acc,
+    [line, ..rest] => {
+      let trimmed = trim(line)
+      if str_length(trimmed) == 0 {
+        join_multiline(acc + "\n", rest)
+      } else if ends_with(acc, "\n") {
+        join_multiline(acc + trimmed, rest)
+      } else {
+        join_multiline(acc + " " + trimmed, rest)
+      }
+    }
+  }
 }
 
 pub fun block_indent_number(indicator: string) : int {
@@ -746,7 +808,8 @@ pub fun check_malformed_values(lines: list<string>, all_lines: list<string>, lin
       else if is_explicit_value_line(line) { check_malformed_values(rest, all_lines, line_num + 1) }
       else {
         let val = strip_tag(kv_val(stripped)).1
-        let has_continuation = match rest {
+        let non_blank_rest = filter(rest, (l) => str_length(trim(l)) > 0)
+        let has_continuation = match non_blank_rest {
           [next, ..] => indent_of(next) > indent_of(line),
           [] => false
         }

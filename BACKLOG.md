@@ -73,14 +73,14 @@ This library targets a practical subset — not full spec compliance.
 
 - [x] Anchors (`&name`)
 - [x] Aliases (`*name`)
-- [ ] Tags (`!!str`, `!!int`, `!local`, etc.)
-- [ ] Verbatim tags (`!<uri>`)
+- [x] Tags (`!!str`, `!!int`, `!local`, etc.) — stripped, `!!str` coerces to string
+- [x] Verbatim tags (`!<uri>`) — stripped
 
 ## String Features
 
 - [x] Escape sequences in double-quoted strings (`\n`, `\t`, `\\`, `\"`, `\x`, `\u`, `\U`)
 - [x] Single-quote escaping (`''` → `'`)
-- [ ] Line folding in flow scalars
+- [x] Line folding in flow scalars
 - [x] Preserved newlines in literal blocks
 - [x] Folded newlines in folded blocks
 
@@ -111,7 +111,7 @@ This library targets a practical subset — not full spec compliance.
 
 ## Tests
 
-- [x] 156 tests passing
+- [x] 166 tests passing
 
 ---
 
