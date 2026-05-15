@@ -617,26 +617,115 @@ pub fun take_first_doc(lines: list<string>, started: bool) : list<string> {
 }
 
 // ============================================================
+// Malformed scalar detection
+// ============================================================
+
+pub fun is_unterminated_quote(s: string) : bool {
+  let t = trim(s)
+  if str_length(t) < 2 { false }
+  else if starts_with(t, "\"") && !ends_with(t, "\"") { true }
+  else if starts_with(t, "'") && !ends_with(t, "'") { true }
+  else { false }
+}
+
+pub fun is_unterminated_flow(s: string) : bool {
+  let t = trim(s)
+  if str_length(t) < 1 { false }
+  else if starts_with(t, "[") && !ends_with(t, "]") { true }
+  else if starts_with(t, "{") && !ends_with(t, "}") { true }
+  else { false }
+}
+
+pub fun check_malformed_values(lines: list<string>, all_lines: list<string>, line_num: int) : result<bool, string> {
+  match lines {
+    [] => Ok(true),
+    [line, ..rest] => {
+      let stripped = strip_comment(line)
+      let trimmed = trim(stripped)
+      if str_length(trimmed) == 0 { check_malformed_values(rest, all_lines, line_num + 1) }
+      else if starts_with(trimmed, "#") { check_malformed_values(rest, all_lines, line_num + 1) }
+      else {
+        let val = kv_val(stripped)
+        let has_continuation = match rest {
+          [next, ..] => indent_of(next) > indent_of(line),
+          [] => false
+        }
+        if !has_continuation && str_length(val) > 0 && is_unterminated_quote(val) {
+          Err("line " + show(line_num) + ": unterminated string: " + val)
+        } else if !has_continuation && str_length(val) > 0 && is_unterminated_flow(val) {
+          Err("line " + show(line_num) + ": unterminated flow collection: " + val)
+        } else {
+          check_malformed_values(rest, all_lines, line_num + 1)
+        }
+      }
+    }
+  }
+}
+
+// ============================================================
+// Indentation error detection
+// ============================================================
+
+pub fun check_indent_errors(lines: list<string>, line_num: int) : result<bool, string> {
+  match lines {
+    [] => Ok(true),
+    [line, ..rest] => {
+      let trimmed = trim(line)
+      if str_length(trimmed) == 0 { check_indent_errors(rest, line_num + 1) }
+      else if starts_with(trimmed, "#") { check_indent_errors(rest, line_num + 1) }
+      else if is_doc_marker(line) { check_indent_errors(rest, line_num + 1) }
+      else {
+        let ind = indent_of(line)
+        if ind > 0 && contains(line[:ind], "\t") {
+          Err("line " + show(line_num) + ": tabs are not allowed in YAML indentation")
+        } else {
+          check_indent_errors(rest, line_num + 1)
+        }
+      }
+    }
+  }
+}
+
+// ============================================================
+// BOM handling
+// ============================================================
+
+pub fun strip_bom(s: string) : string {
+  let bom = char_to_string(chr(65279))
+  if starts_with(s, bom) { s[str_length(bom):] } else { s }
+}
+
+// ============================================================
 // Public entry point
 // ============================================================
 
 pub fun yaml_parse(input: string) : result<Yaml, string> {
-  let trimmed = trim(input)
+  let clean = strip_bom(input)
+  let trimmed = trim(clean)
   if str_length(trimmed) == 0 {
     Err("empty input")
-  } else if check_tabs(input) {
-    Err("line " + show(find_tab_line(input)) + ": tabs are not allowed in YAML indentation")
   } else {
-    let raw_lines = split(input, "\n")
-    let first_doc = take_first_doc(raw_lines, false)
-    let doc_str = join(first_doc, "\n")
-    let ls = prepare_lines(doc_str)
-    if length(ls) == 0 {
-      Err("empty input")
-    } else {
-      let parsed = parse_lines(ls)
-      let resolved = resolve_anchors(parsed, [])
-      Ok(resolved.0)
+    let lines = split(clean, "\n")
+    match check_indent_errors(lines, 1) {
+      Err(e) => Err(e),
+      Ok(_) => {
+        match check_malformed_values(lines, lines, 1) {
+          Err(e) => Err(e),
+          Ok(_) => {
+            let raw_lines = split(clean, "\n")
+            let first_doc = take_first_doc(raw_lines, false)
+            let doc_str = join(first_doc, "\n")
+            let ls = prepare_lines(doc_str)
+            if length(ls) == 0 {
+              Err("empty input")
+            } else {
+              let parsed = parse_lines(ls)
+              let resolved = resolve_anchors(parsed, [])
+              Ok(resolved.0)
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -665,21 +754,31 @@ pub fun collect_values(results: list<result<Yaml, string>>) : list<Yaml> {
 }
 
 pub fun yaml_parse_all(input: string) : result<list<Yaml>, string> {
-  let trimmed = trim(input)
+  let clean = strip_bom(input)
+  let trimmed = trim(clean)
   if str_length(trimmed) == 0 {
     Err("empty input")
-  } else if check_tabs(input) {
-    Err("line " + show(find_tab_line(input)) + ": tabs are not allowed in YAML indentation")
   } else {
-    let docs = split_documents(input)
-    if length(docs) == 0 {
-      Err("empty input")
-    } else {
-      let results = map(docs, (d) => parse_single_doc(d))
-      let errs = collect_errors(results)
-      match errs {
-        [msg, ..] => Err(msg),
-        [] => Ok(collect_values(results))
+    let lines = split(clean, "\n")
+    match check_indent_errors(lines, 1) {
+      Err(e) => Err(e),
+      Ok(_) => {
+        match check_malformed_values(lines, lines, 1) {
+          Err(e) => Err(e),
+          Ok(_) => {
+            let docs = split_documents(clean)
+            if length(docs) == 0 {
+              Err("empty input")
+            } else {
+              let results = map(docs, (d) => parse_single_doc(d))
+              let errs = collect_errors(results)
+              match errs {
+                [msg, ..] => Err(msg),
+                [] => Ok(collect_values(results))
+              }
+            }
+          }
+        }
       }
     }
   }

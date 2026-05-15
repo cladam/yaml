@@ -67,7 +67,7 @@ This library targets a practical subset — not full spec compliance.
 - [x] Document markers (`---`, `...`)
 - [x] Multi-document streams
 - [ ] Directives (`%YAML`, `%TAG`)
-- [ ] Byte order mark handling
+- [x] Byte order mark handling
 
 ## Node Properties (Ch. 6.9)
 
@@ -93,9 +93,9 @@ This library targets a practical subset — not full spec compliance.
 ## Error Handling
 
 - [x] Empty input detection
-- [ ] Indentation error reporting
+- [x] Indentation error reporting
 - [x] Duplicate key detection
-- [ ] Malformed scalar reporting
+- [x] Malformed scalar reporting
 - [x] Line number in error messages
 
 ## API
@@ -111,7 +111,7 @@ This library targets a practical subset — not full spec compliance.
 
 ## Tests
 
-- [x] 140 tests passing
+- [x] 105 tests passing
 
 ---
 
