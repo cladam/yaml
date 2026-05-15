@@ -170,7 +170,6 @@ pub fun prepare_lines(input: string) : list<string> {
   let raw = split(input, "\n")
     |> map((l) => strip_comment(l))
     |> prejoin_flow_scalars
-    |> filter((l) => str_length(trim(l)) > 0)
     |> filter((l) => !is_doc_marker(l))
     |> filter((l) => !is_directive(l))
   resolve_explicit_keys(raw)
@@ -263,11 +262,27 @@ pub fun block_indent_number(indicator: string) : int {
 // Block collection helpers
 // ============================================================
 
+pub fun has_indented_after_blanks(lines: list<string>, base_indent: int) : bool {
+  match lines {
+    [] => false,
+    [line, ..rest] => {
+      if str_length(trim(line)) == 0 { has_indented_after_blanks(rest, base_indent) }
+      else { indent_of(line) > base_indent }
+    }
+  }
+}
+
 pub fun collect_block(lines: list<string>, base_indent: int) : BlockResult {
   match lines {
     [] => BlockResult { collected: [], remaining: [] },
     [line, ..rest] => {
-      if indent_of(line) > base_indent {
+      let is_blank = str_length(trim(line)) == 0
+      if is_blank && has_indented_after_blanks(rest, base_indent) {
+        let inner = collect_block(rest, base_indent)
+        BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
+      } else if is_blank {
+        BlockResult { collected: [], remaining: lines }
+      } else if indent_of(line) > base_indent {
         let inner = collect_block(rest, base_indent)
         BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
       } else {
@@ -277,13 +292,24 @@ pub fun collect_block(lines: list<string>, base_indent: int) : BlockResult {
   }
 }
 
+pub fun try_skip_blank_list(rest: list<string>, all: list<string>, base_indent: int) : BlockResult {
+  let inner = collect_list_block(rest, base_indent)
+  match inner.collected {
+    [] => BlockResult { collected: [], remaining: all },
+    _ => inner
+  }
+}
+
 pub fun collect_list_block(lines: list<string>, base_indent: int) : BlockResult {
   match lines {
     [] => BlockResult { collected: [], remaining: [] },
     [line, ..rest] => {
-      if indent_of(line) == base_indent && is_list_line(line) {
+      let is_blank = str_length(trim(line)) == 0
+      if !is_blank && indent_of(line) == base_indent && is_list_line(line) {
         let inner = collect_list_block(rest, base_indent)
         BlockResult { collected: [line] + inner.collected, remaining: inner.remaining }
+      } else if is_blank {
+        try_skip_blank_list(rest, lines, base_indent)
       } else {
         BlockResult { collected: [], remaining: lines }
       }
@@ -353,7 +379,8 @@ pub fun parse_list_entries(lines: list<string>, base_indent: int) : list<Yaml> {
             let sub_lines = [pad + val_str] + blk.collected
             [parse_lines(sub_lines)] + parse_list_entries(blk.remaining, base_indent)
           } else if has_block && has_val {
-            let parts = [val_str] + map(blk.collected, (l) => trim(l))
+            let non_blank = filter_blanks(blk.collected)
+            let parts = [val_str] + map(non_blank, (l) => trim(l))
             [YStr(join(parts, " "))] + parse_list_entries(blk.remaining, base_indent)
           } else if has_block {
             [parse_lines(blk.collected)] + parse_list_entries(blk.remaining, base_indent)
@@ -447,7 +474,7 @@ pub fun fold_lines(lines: list<string>) : string {
         match rest {
           [next, ..] => {
             if str_length(trim(next)) == 0 {
-              line + fold_lines(rest)
+              line + "\n" + fold_lines(rest)
             } else {
               line + " " + fold_lines(rest)
             }
@@ -489,8 +516,9 @@ pub fun parse_map_entries(lines: list<string>, base_indent: int) : list<(string,
             }
           } else if is_plain_value(val_str) {
             let cont = collect_block(rest, base_indent)
-            if length(cont.collected) > 0 {
-              let parts = [val_str] + map(cont.collected, (l) => trim(l))
+            let non_blank = filter_blanks(cont.collected)
+            if length(non_blank) > 0 {
+              let parts = [val_str] + map(non_blank, (l) => trim(l))
               [(emit_key, YStr(join(parts, " ")))] + parse_map_entries(cont.remaining, base_indent)
             } else {
               [(emit_key, parse_tagged(val_tag, val_str))] + parse_map_entries(rest, base_indent)
@@ -499,7 +527,8 @@ pub fun parse_map_entries(lines: list<string>, base_indent: int) : list<(string,
             [(emit_key, parse_tagged(val_tag, val_str))] + parse_map_entries(rest, base_indent)
           }
         } else {
-          let is_next_list = match rest {
+          let next_rest = skip_blanks(rest)
+          let is_next_list = match next_rest {
             [next_line, ..] => indent_of(next_line) == base_indent && is_list_line(next_line),
             [] => false
           }
@@ -542,8 +571,22 @@ pub fun dedup_entries(entries: list<(string, Yaml)>) : list<(string, Yaml)> {
 // Top-level dispatch
 // ============================================================
 
+pub fun skip_blanks(lines: list<string>) : list<string> {
+  match lines {
+    [] => [],
+    [line, ..rest] => {
+      if str_length(trim(line)) == 0 { skip_blanks(rest) }
+      else { lines }
+    }
+  }
+}
+
+pub fun filter_blanks(lines: list<string>) : list<string> =>
+  filter(lines, (l) => str_length(trim(l)) > 0)
+
 pub fun parse_lines(all_lines: list<string>) : Yaml {
-  match all_lines {
+  let lines = skip_blanks(all_lines)
+  match lines {
     [] => YNull,
     [single] => {
       if is_list_line(single) {
@@ -559,9 +602,9 @@ pub fun parse_lines(all_lines: list<string>) : Yaml {
     },
     [first, ..] => {
       if is_list_line(first) {
-        YList(parse_list_entries(all_lines, indent_of(first)))
+        YList(parse_list_entries(lines, indent_of(first)))
       } else if is_map_line(first) {
-        YMap(dedup_entries(parse_map_entries(all_lines, indent_of(first))))
+        YMap(dedup_entries(parse_map_entries(lines, indent_of(first))))
       } else {
         parse_scalar(first)
       }

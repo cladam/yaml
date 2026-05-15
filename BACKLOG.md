@@ -60,7 +60,7 @@ This library targets a practical subset — not full spec compliance.
 - [x] Inline comments (`key: val # comment`)
 - [x] Full-line comments (`# comment`)
 - [x] Comments in flow collections
-- [ ] Comments between multi-line scalars
+- [x] Comments between multi-line scalars
 
 ## Structure (Ch. 6, 9)
 
@@ -88,7 +88,7 @@ This library targets a practical subset — not full spec compliance.
 
 - [x] Space-based indentation detection
 - [x] Tab rejection in indentation
-- [ ] Empty line handling inside scalars
+- [x] Empty line handling inside scalars
 
 ## Error Handling
 
@@ -111,7 +111,7 @@ This library targets a practical subset — not full spec compliance.
 
 ## Tests
 
-- [x] 166 tests passing
+- [x] 174 tests passing
 
 ---
 

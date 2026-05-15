@@ -141,3 +141,67 @@ test "flow scalar in list with blank line" {
   let val = doc |> nth(0) |> as_str
   assert(val == Some("hello\nworld"))
 }
+
+// --- Comments between multi-line scalars ---
+
+test "comment line between plain scalar continuations" {
+  let input = "key: hello\n  # a comment\n  world"
+  let doc = yaml_parse(input) |> yaml_ok
+  let val = doc |> at("key") |> as_str
+  assert(val == Some("hello world"))
+}
+
+test "inline comment on plain scalar continuation" {
+  let input = "key: hello\n  world # comment"
+  let doc = yaml_parse(input) |> yaml_ok
+  let val = doc |> at("key") |> as_str
+  assert(val == Some("hello world"))
+}
+
+test "comment between map entries with multi-line values" {
+  let input = "a: one\n  two\n# between\nb: three"
+  let doc = yaml_parse(input) |> yaml_ok
+  let a = doc |> at("a") |> as_str
+  let b = doc |> at("b") |> as_str
+  assert(a == Some("one two"))
+  assert(b == Some("three"))
+}
+
+test "comment between list items" {
+  let input = "- first\n# comment\n- second"
+  let doc = yaml_parse(input) |> yaml_ok
+  let a = doc |> nth(0) |> as_str
+  let b = doc |> nth(1) |> as_str
+  assert(a == Some("first"))
+  assert(b == Some("second"))
+}
+
+// --- Empty line handling inside scalars ---
+
+test "literal block scalar with blank line" {
+  let input = "key: |\n  line 1\n\n  line 2"
+  let doc = yaml_parse(input) |> yaml_ok
+  let val = doc |> at("key") |> as_str
+  assert(val == Some("line 1\n\nline 2\n"))
+}
+
+test "folded block scalar with blank line" {
+  let input = "key: >\n  para 1\n\n  para 2"
+  let doc = yaml_parse(input) |> yaml_ok
+  let val = doc |> at("key") |> as_str
+  assert(val == Some("para 1\n\npara 2\n"))
+}
+
+test "literal block in list with blank line" {
+  let input = "- |\n  a\n\n  b"
+  let doc = yaml_parse(input) |> yaml_ok
+  let val = doc |> nth(0) |> as_str
+  assert(val == Some("a\n\nb\n"))
+}
+
+test "literal block with multiple blank lines" {
+  let input = "key: |\n  one\n\n\n  two"
+  let doc = yaml_parse(input) |> yaml_ok
+  let val = doc |> at("key") |> as_str
+  assert(val == Some("one\n\n\ntwo\n"))
+}
