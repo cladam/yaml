@@ -43,7 +43,7 @@ This library targets a practical subset — not full spec compliance.
 - [x] Sequences under map keys (same-indent and indented)
 - [x] Mappings inside sequences
 - [x] Compact nested mappings (after `-`)
-- [ ] Explicit mapping keys (`? key`)
+- [x] Explicit mapping keys (`? key`)
 - [ ] Complex mapping keys (sequences/mappings as keys)
 
 ## Collections — Flow Style (Ch. 7.4)
@@ -66,7 +66,7 @@ This library targets a practical subset — not full spec compliance.
 
 - [x] Document markers (`---`, `...`)
 - [x] Multi-document streams
-- [ ] Directives (`%YAML`, `%TAG`)
+- [x] Directives (`%YAML`, `%TAG`) — silently ignored
 - [x] Byte order mark handling
 
 ## Node Properties (Ch. 6.9)
@@ -111,7 +111,7 @@ This library targets a practical subset — not full spec compliance.
 
 ## Tests
 
-- [x] 105 tests passing
+- [x] 156 tests passing
 
 ---
 

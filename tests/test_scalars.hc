@@ -187,3 +187,47 @@ test "quoted null is string" {
   let r = as_str(doc)
   assert(r == Some("null"))
 }
+
+// --- Tag stripping ---
+
+test "shorthand tag stripped from map value" {
+  let doc = yaml_parse("name: !!str 42") |> yaml_ok
+  let r = doc |> at("name") |> as_str
+  assert(r == Some("42"))
+}
+
+test "shorthand tag stripped int stays int" {
+  let doc = yaml_parse("val: !!int 42") |> yaml_ok
+  let r = doc |> at("val") |> as_int
+  assert(r == Some(42))
+}
+
+test "local tag stripped from value" {
+  let doc = yaml_parse("val: !custom hello") |> yaml_ok
+  let r = doc |> at("val") |> as_str
+  assert(r == Some("hello"))
+}
+
+test "verbatim tag stripped from value" {
+  let doc = yaml_parse("val: !<tag:yaml.org,2002:str> hello") |> yaml_ok
+  let r = doc |> at("val") |> as_str
+  assert(r == Some("hello"))
+}
+
+test "tag stripped from list item" {
+  let doc = yaml_parse("- !!str 99\n- !!int 5") |> yaml_ok
+  let r = doc |> nth(0) |> as_str
+  assert(r == Some("99"))
+}
+
+test "tag stripped from bare scalar" {
+  let doc = yaml_parse("!!str 42") |> yaml_ok
+  let r = as_str(doc)
+  assert(r == Some("42"))
+}
+
+test "tag only value is null" {
+  let doc = yaml_parse("key: !!null") |> yaml_ok
+  let r = doc |> at("key") |> as_str
+  assert(r == None)
+}

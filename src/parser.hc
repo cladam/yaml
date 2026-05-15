@@ -40,6 +40,47 @@ pub fun is_directive(line: string) : bool =>
   starts_with(trim(line), "%")
 
 // ============================================================
+// Tag stripping (!!type, !local, !<uri>)
+// ============================================================
+
+pub fun strip_tag(s: string) : (string, string) {
+  let t = trim(s)
+  if starts_with(t, "!<") {
+    match index_of(t, ">") {
+      Some(i) => {
+        let tag = t[:i + 1]
+        let val = trim(t[i + 1:])
+        (tag, val)
+      },
+      None => ("", t)
+    }
+  } else if starts_with(t, "!!") {
+    match index_of(t, " ") {
+      Some(i) => (t[:i], trim(t[i + 1:])),
+      None => (t, "")
+    }
+  } else if starts_with(t, "!") && str_length(t) > 1 {
+    let second = t[1:2]
+    if second != " " && second != "!" {
+      match index_of(t, " ") {
+        Some(i) => (t[:i], trim(t[i + 1:])),
+        None => (t, "")
+      }
+    } else {
+      ("", t)
+    }
+  } else {
+    ("", t)
+  }
+}
+
+pub fun parse_tagged(tag: string, val: string) : Yaml {
+  if tag == "!!str" { YStr(val) }
+  else if tag == "" { parse_scalar(val) }
+  else { parse_tagged("", val) }
+}
+
+// ============================================================
 // Explicit key preprocessing (? key / : value)
 // ============================================================
 
@@ -225,7 +266,10 @@ pub fun parse_list_entries(lines: list<string>, base_indent: int) : list<Yaml> {
     [] => [],
     [line, ..rest] => {
       if indent_of(line) == base_indent && is_list_line(line) {
-        let val_str = list_item_value(line)
+        let val_raw = list_item_value(line)
+        let tag_info = strip_tag(val_raw)
+        let val_tag = tag_info.0
+        let val_str = tag_info.1
         if is_block_scalar_indicator(val_str) {
           let blk = collect_block(rest, base_indent)
           [block_scalar_join(blk.collected, val_str, base_indent)] + parse_list_entries(blk.remaining, base_indent)
@@ -234,9 +278,9 @@ pub fun parse_list_entries(lines: list<string>, base_indent: int) : list<Yaml> {
           let cont = collect_quoted(rest, base_indent, quote)
           if length(cont.collected) > 0 {
             let full = join_multiline(val_str, cont.collected)
-            [parse_scalar(full)] + parse_list_entries(cont.remaining, base_indent)
+            [parse_tagged(val_tag, full)] + parse_list_entries(cont.remaining, base_indent)
           } else {
-            [parse_scalar(val_str)] + parse_list_entries(rest, base_indent)
+            [parse_tagged(val_tag, val_str)] + parse_list_entries(rest, base_indent)
           }
         } else {
           let blk = collect_block(rest, base_indent)
@@ -254,7 +298,7 @@ pub fun parse_list_entries(lines: list<string>, base_indent: int) : list<Yaml> {
           } else if is_map_line(val_str) {
             [YMap([(kv_key(val_str), parse_scalar(kv_val(val_str)))])] + parse_list_entries(rest, base_indent)
           } else {
-            [parse_scalar(val_str)] + parse_list_entries(rest, base_indent)
+            [parse_tagged(val_tag, val_str)] + parse_list_entries(rest, base_indent)
           }
         }
       } else {
@@ -363,7 +407,10 @@ pub fun parse_map_entries(lines: list<string>, base_indent: int) : list<(string,
         let anchor_info = strip_anchor(raw_val)
         let val_anchor = anchor_info.0
         let val_after = anchor_info.1
-        let val_str = if str_length(val_anchor) > 0 { val_after } else { raw_val }
+        let val_raw = if str_length(val_anchor) > 0 { val_after } else { raw_val }
+        let tag_info = strip_tag(val_raw)
+        let val_tag = tag_info.0
+        let val_str = tag_info.1
         let emit_key = if str_length(val_anchor) > 0 { "__anchor:" + val_anchor + ":" + key } else { key }
         if is_block_scalar_indicator(val_str) {
           let blk = collect_block(rest, base_indent)
@@ -374,9 +421,9 @@ pub fun parse_map_entries(lines: list<string>, base_indent: int) : list<(string,
             let cont = collect_quoted(rest, base_indent, quote)
             if length(cont.collected) > 0 {
               let full = join_multiline(val_str, cont.collected)
-              [(emit_key, parse_scalar(full))] + parse_map_entries(cont.remaining, base_indent)
+              [(emit_key, parse_tagged(val_tag, full))] + parse_map_entries(cont.remaining, base_indent)
             } else {
-              [(emit_key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
+              [(emit_key, parse_tagged(val_tag, val_str))] + parse_map_entries(rest, base_indent)
             }
           } else if is_plain_value(val_str) {
             let cont = collect_block(rest, base_indent)
@@ -384,10 +431,10 @@ pub fun parse_map_entries(lines: list<string>, base_indent: int) : list<(string,
               let parts = [val_str] + map(cont.collected, (l) => trim(l))
               [(emit_key, YStr(join(parts, " ")))] + parse_map_entries(cont.remaining, base_indent)
             } else {
-              [(emit_key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
+              [(emit_key, parse_tagged(val_tag, val_str))] + parse_map_entries(rest, base_indent)
             }
           } else {
-            [(emit_key, parse_scalar(val_str))] + parse_map_entries(rest, base_indent)
+            [(emit_key, parse_tagged(val_tag, val_str))] + parse_map_entries(rest, base_indent)
           }
         } else {
           let is_next_list = match rest {
@@ -438,11 +485,14 @@ pub fun parse_lines(all_lines: list<string>) : Yaml {
     [] => YNull,
     [single] => {
       if is_list_line(single) {
-        YList([parse_scalar(list_item_value(single))])
+        let ti = strip_tag(list_item_value(single))
+        YList([parse_tagged(ti.0, ti.1)])
       } else if is_map_line(single) {
-        YMap([(kv_key(single), parse_scalar(kv_val(single)))])
+        let ti = strip_tag(kv_val(single))
+        YMap([(kv_key(single), parse_tagged(ti.0, ti.1))])
       } else {
-        parse_scalar(single)
+        let ti = strip_tag(single)
+        parse_tagged(ti.0, ti.1)
       }
     },
     [first, ..] => {
@@ -695,7 +745,7 @@ pub fun check_malformed_values(lines: list<string>, all_lines: list<string>, lin
       else if is_explicit_key_line(line) { check_malformed_values(rest, all_lines, line_num + 1) }
       else if is_explicit_value_line(line) { check_malformed_values(rest, all_lines, line_num + 1) }
       else {
-        let val = kv_val(stripped)
+        let val = strip_tag(kv_val(stripped)).1
         let has_continuation = match rest {
           [next, ..] => indent_of(next) > indent_of(line),
           [] => false
