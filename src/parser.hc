@@ -36,11 +36,55 @@ pub fun is_doc_marker(line: string) : bool {
   trimmed == "---" || trimmed == "..."
 }
 
+pub fun is_directive(line: string) : bool =>
+  starts_with(trim(line), "%")
+
+// ============================================================
+// Explicit key preprocessing (? key / : value)
+// ============================================================
+
+pub fun is_explicit_key_line(line: string) : bool {
+  let t = trim_start(line)
+  starts_with(t, "? ")
+}
+
+pub fun is_explicit_value_line(line: string) : bool {
+  let t = trim_start(line)
+  starts_with(t, ": ") || t == ":"
+}
+
+pub fun resolve_explicit_keys(lines: list<string>) : list<string> {
+  match lines {
+    [] => [],
+    [line, ..rest] => {
+      if is_explicit_key_line(line) {
+        let ind = indent_of(line)
+        let key = trim(trim_start(line)[2:])
+        match rest {
+          [next, ..rest2] => {
+            if indent_of(next) == ind && is_explicit_value_line(next) {
+              let val = trim(trim_start(next)[2:])
+              [make_indent(ind) + key + ": " + val] + resolve_explicit_keys(rest2)
+            } else {
+              [make_indent(ind) + key + ":"] + resolve_explicit_keys(rest)
+            }
+          },
+          [] => [make_indent(ind) + key + ":"]
+        }
+      } else {
+        [line] + resolve_explicit_keys(rest)
+      }
+    }
+  }
+}
+
 pub fun prepare_lines(input: string) : list<string> {
-  split(input, "\n")
+  let raw = split(input, "\n")
     |> map((l) => strip_comment(l))
     |> filter((l) => str_length(trim(l)) > 0)
     |> filter((l) => !is_doc_marker(l))
+    |> filter((l) => !is_directive(l))
+  resolve_explicit_keys(raw)
 }
 
 pub fun is_list_line(line: string) : bool =>
@@ -571,7 +615,9 @@ pub fun split_docs_acc(lines: list<string>, current: list<string>, docs: list<st
       if str_length(trim(doc)) > 0 { docs + [doc] } else { docs }
     },
     [line, ..rest] => {
-      if trim(line) == "---" {
+      if is_directive(line) {
+        split_docs_acc(rest, current, docs)
+      } else if trim(line) == "---" {
         let doc = join(current, "\n")
         if str_length(trim(doc)) > 0 {
           split_docs_acc(rest, [], docs + [doc])
@@ -609,7 +655,8 @@ pub fun take_first_doc(lines: list<string>, started: bool) : list<string> {
     [line, ..rest] => {
       let t = trim(line)
       let is_sep = t == "---" || t == "..."
-      if is_sep && started { [] }
+      if is_directive(line) { take_first_doc(rest, started) }
+      else if is_sep && started { [] }
       else if is_sep { take_first_doc(rest, true) }
       else { [line] + take_first_doc(rest, true) }
     }
@@ -644,6 +691,9 @@ pub fun check_malformed_values(lines: list<string>, all_lines: list<string>, lin
       let trimmed = trim(stripped)
       if str_length(trimmed) == 0 { check_malformed_values(rest, all_lines, line_num + 1) }
       else if starts_with(trimmed, "#") { check_malformed_values(rest, all_lines, line_num + 1) }
+      else if is_directive(line) { check_malformed_values(rest, all_lines, line_num + 1) }
+      else if is_explicit_key_line(line) { check_malformed_values(rest, all_lines, line_num + 1) }
+      else if is_explicit_value_line(line) { check_malformed_values(rest, all_lines, line_num + 1) }
       else {
         let val = kv_val(stripped)
         let has_continuation = match rest {

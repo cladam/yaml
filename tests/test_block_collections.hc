@@ -242,3 +242,37 @@ test "same-indent list under map key" {
     _ => assert(false)
   }
 }
+
+// --- Explicit mapping keys ---
+
+test "explicit key with value" {
+  let input = "? name\n: test"
+  let doc = yaml_parse(input) |> yaml_ok
+  let name = doc |> at("name") |> as_str
+  assert(name == Some("test"))
+}
+
+test "multiple explicit keys" {
+  let input = "? a\n: 1\n? b\n: 2"
+  let doc = yaml_parse(input) |> yaml_ok
+  let a = doc |> at("a") |> as_int
+  let b = doc |> at("b") |> as_int
+  assert(a == Some(1))
+  assert(b == Some(2))
+}
+
+test "explicit key without value" {
+  let input = "? name\nother: val"
+  let doc = yaml_parse(input) |> yaml_ok
+  let other = doc |> at("other") |> as_str
+  assert(other == Some("val"))
+}
+
+test "explicit key mixed with regular" {
+  let input = "? a\n: 1\nb: 2"
+  let doc = yaml_parse(input) |> yaml_ok
+  let a = doc |> at("a") |> as_int
+  let b = doc |> at("b") |> as_int
+  assert(a == Some(1))
+  assert(b == Some(2))
+}

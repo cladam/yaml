@@ -93,6 +93,37 @@ test "tabs not in indentation accepted" {
   }
 }
 
+// --- Directives ---
+
+test "YAML directive is ignored" {
+  let input = "%YAML 1.2\n---\nname: test"
+  let doc = yaml_parse(input) |> yaml_ok
+  let name = doc |> at("name") |> as_str
+  assert(name == Some("test"))
+}
+
+test "TAG directive is ignored" {
+  let input = "%TAG !yaml! tag:yaml.org,2002:\n---\nname: test"
+  let doc = yaml_parse(input) |> yaml_ok
+  let name = doc |> at("name") |> as_str
+  assert(name == Some("test"))
+}
+
+test "multiple directives ignored" {
+  let input = "%YAML 1.2\n%TAG !yaml! tag:yaml.org,2002:\n---\nport: 8080"
+  let doc = yaml_parse(input) |> yaml_ok
+  let port = doc |> at("port") |> as_int
+  assert(port == Some(8080))
+}
+
+test "directives in multi-doc stream" {
+  let input = "%YAML 1.2\n---\na: 1\n---\nb: 2"
+  match yaml_parse_all(input) {
+    Ok(docs) => assert(length(docs) == 2),
+    Err(_) => assert(false)
+  }
+}
+
 // --- Anchors & Aliases ---
 
 test "anchor on block value" {
