@@ -276,3 +276,36 @@ test "explicit key mixed with regular" {
   assert(a == Some(1))
   assert(b == Some(2))
 }
+
+// --- Complex mapping keys ---
+
+test "flow sequence as mapping key" {
+  let input = "? [a, b]\n: value"
+  let doc = yaml_parse(input) |> yaml_ok
+  let val = doc |> at("[a, b]") |> as_str
+  assert(val == Some("value"))
+}
+
+test "flow mapping as mapping key" {
+  let input = join(["? ", "{", "name: foo", "}", "\n: bar"], "")
+  let doc = yaml_parse(input) |> yaml_ok
+  let key = join(["{", "name: foo", "}"], "")
+  let val = doc |> at(key) |> as_str
+  assert(val == Some("bar"))
+}
+
+test "complex key with integer value" {
+  let input = "? [x, y]\n: 42"
+  let doc = yaml_parse(input) |> yaml_ok
+  let val = doc |> at("[x, y]") |> as_int
+  assert(val == Some(42))
+}
+
+test "complex key mixed with simple keys" {
+  let input = "? [a, b]\n: 1\nname: test"
+  let doc = yaml_parse(input) |> yaml_ok
+  let a = doc |> at("[a, b]") |> as_int
+  let b = doc |> at("name") |> as_str
+  assert(a == Some(1))
+  assert(b == Some("test"))
+}

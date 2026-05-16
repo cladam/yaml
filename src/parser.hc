@@ -321,33 +321,44 @@ pub fun collect_list_block(lines: list<string>, base_indent: int) : BlockResult 
 // Map & list parsing
 // ============================================================
 
-pub fun is_map_line(line: string) : bool {
-  let trimmed = trim_start(line)
-  if starts_with(trimmed, "- ") { false }
-  else {
-    match index_of(trimmed, ": ") {
-      Some(_) => true,
-      None => ends_with(trimmed, ":")
-    }
-  }
+pub fun char_at(s: string, i: int) : string =>
+  s[i:i + 1]
+
+pub fun is_open_bracket(c: string) : bool =>
+  c == "[" || c == "{"
+
+pub fun is_close_bracket(c: string) : bool =>
+  c == "]" || c == "}"
+
+pub fun find_kv_split_acc(s: string, pos: int, depth: int) : int {
+  let len = str_length(s)
+  if pos >= len { 0 - 1 }
+  else if is_open_bracket(char_at(s, pos)) { find_kv_split_acc(s, pos + 1, depth + 1) }
+  else if is_close_bracket(char_at(s, pos)) { find_kv_split_acc(s, pos + 1, depth - 1) }
+  else if char_at(s, pos) == ":" && pos + 1 < len && char_at(s, pos + 1) == " " && depth == 0 { pos }
+  else if char_at(s, pos) == ":" && pos + 1 < len && char_at(s, pos + 1) == " " { find_kv_split_acc(s, pos + 2, depth) }
+  else { find_kv_split_acc(s, pos + 1, depth) }
 }
 
-pub fun split_kv(line: string) : (string, string) {
-  let trimmed = trim_start(line)
-  match index_of(trimmed, ": ") {
-    Some(i) => (trimmed[:i], trim(trimmed[i + 2:])),
-    None => {
-      if ends_with(trimmed, ":") {
-        (trimmed[:str_length(trimmed) - 1], "")
-      } else {
-        (trimmed, "")
-      }
-    }
-  }
+pub fun find_kv_split(s: string) : int =>
+  find_kv_split_acc(s, 0, 0)
+
+pub fun is_map_line(line: string) : bool =>
+  if starts_with(trim_start(line), "- ") { false }
+  else if find_kv_split_acc(trim_start(line), 0, 0) >= 0 { true }
+  else { ends_with(trim_start(line), ":") }
+
+pub fun split_at_kv(trimmed: string, i: int) : (string, string) {
+  if i >= 0 { (trimmed[:i], trim(trimmed[i + 2:])) }
+  else if ends_with(trimmed, ":") { (trimmed[:str_length(trimmed) - 1], "") }
+  else { (trimmed, "") }
 }
 
-pub fun kv_key(line: string) : string => split_kv(line).0
-pub fun kv_val(line: string) : string => split_kv(line).1
+pub fun split_kv(line: string) : (string, string) =>
+  split_at_kv(trim_start(line), find_kv_split_acc(trim_start(line), 0, 0))
+
+pub fun kv_key(line: string) : string => split_at_kv(trim_start(line), find_kv_split_acc(trim_start(line), 0, 0)).0
+pub fun kv_val(line: string) : string => split_at_kv(trim_start(line), find_kv_split_acc(trim_start(line), 0, 0)).1
 
 pub fun parse_list_entries(lines: list<string>, base_indent: int) : list<Yaml> {
   match lines {
