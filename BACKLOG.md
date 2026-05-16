@@ -44,7 +44,7 @@ This library targets a practical subset — not full spec compliance.
 - [x] Mappings inside sequences
 - [x] Compact nested mappings (after `-`)
 - [x] Explicit mapping keys (`? key`)
-- [ ] Complex mapping keys (sequences/mappings as keys)
+- [x] Complex mapping keys (sequences/mappings as keys)
 
 ## Collections — Flow Style (Ch. 7.4)
 
@@ -111,7 +111,7 @@ This library targets a practical subset — not full spec compliance.
 
 ## Tests
 
-- [x] 174 tests passing
+- [x] 178 tests passing
 
 ---
 
@@ -127,9 +127,10 @@ Features needed to parse `.tbdflow.yml` — **all done**:
 
 Next priorities for general-purpose use:
 
-1. Flow sequences `[a, b, c]`
-2. Flow mappings `{key: val}`
-3. Multi-line strings (literal `|` and folded `>`)
-4. Escape sequences in quoted strings
-5. Anchors & aliases
-6. Document markers (`---`/`...`)
+1. ~~Flow sequences `[a, b, c]`~~ ✓
+2. ~~Flow mappings `{key: val}`~~ ✓
+3. ~~Multi-line strings (literal `|` and folded `>`)~~ ✓
+4. ~~Escape sequences in quoted strings~~ ✓
+5. ~~Anchors & aliases~~ ✓
+6. ~~Document markers (`---`/`...`)~~ ✓
+7. [ ] Serialization (emit/dump YAML from data)

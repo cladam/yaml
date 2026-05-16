@@ -21,12 +21,14 @@ import "./lib/yaml/src/yaml"
 - **Scalars**: strings (bare, single-quoted, double-quoted with escape sequences), integers (decimal, hex `0x`, octal `0o`), floats (decimal, scientific, `.inf`, `.nan`), booleans, null
 - **Block maps**: `key: value` with indentation nesting
 - **Block sequences**: `- item` lists, compact nested mappings (`- name: foo`)
-- **Block scalars**: literal (`|`) and folded (`>`) with chomping (`-`, `+`) and explicit indentation indicators (`|2`, `>4`)
+- **Block scalars**: literal (`|`) and folded (`>`) with chomping (`-`, `+`), explicit indentation indicators (`|2`, `>4`), and empty line preservation
 - **Multi-line scalars**: plain scalar line folding, multi-line quoted strings
 - **Flow collections**: sequences (`[a, b, c]`), mappings (`{key: val}`), nested, trailing commas
-- **Comments**: inline (`# ...`), full-line, inside flow collections
+- **Complex keys**: flow sequences/mappings as mapping keys (`? [a, b]`)
+- **Comments**: inline (`# ...`), full-line, inside flow collections, between multi-line scalars
 - **Document markers**: `---` and `...` stripped automatically
 - **Multi-document streams**: `yaml_parse_all` returns all documents
+- **Tags**: `!!str`, `!!int`, `!local`, `!<uri>` — stripped during parse, `!!str` coerces to string
 - **Anchors & aliases**: `&name` anchors and `*name` references
 - **Duplicate keys**: last value wins
 - **Tab rejection**: tabs in indentation produce clear errors
