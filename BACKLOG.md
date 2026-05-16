@@ -106,12 +106,12 @@ This library targets a practical subset — not full spec compliance.
 - [x] Defaults: `str_or`, `int_or`, `float_or`, `bool_or`
 - [x] Inspection: `has_key`, `keys`, `yaml_length`
 - [x] Display: `yaml_show`, `yaml_pretty`
-- [ ] Serialization (emit/dump YAML from data)
+- [x] Serialization: `yaml_emit` (block), `yaml_emit_flow` (flow)
 - [x] `yaml_parse_file(path)` convenience
 
 ## Tests
 
-- [x] 178 tests passing
+- [x] 201 tests passing
 
 ---
 
@@ -133,4 +133,6 @@ Next priorities for general-purpose use:
 4. ~~Escape sequences in quoted strings~~ ✓
 5. ~~Anchors & aliases~~ ✓
 6. ~~Document markers (`---`/`...`)~~ ✓
-7. [ ] Serialization (emit/dump YAML from data)
+7. ~~Serialization (emit/dump YAML from data)~~ ✓
+
+**All features complete for 1.0.0.**

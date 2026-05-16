@@ -139,6 +139,27 @@ yaml_show(y: Yaml) : string        // compact one-line representation
 yaml_pretty(y: Yaml, indent: int) : string  // indented multi-line output
 ```
 
+### Serialization
+
+Emit valid YAML from `Yaml` values:
+
+```rust
+yaml_emit(y: Yaml) : string       // block-style (human-readable, indented)
+yaml_emit_flow(y: Yaml) : string  // flow-style (compact, single-line)
+```
+
+Example:
+
+```rust
+let data = YMap([("name", YStr("myapp")), ("port", YInt(8080))])
+println(yaml_emit(data))
+// name: myapp
+// port: 8080
+
+println(yaml_emit_flow(data))
+// {name: myapp, port: 8080}
+```
+
 ## Examples
 
 See the [examples/](examples/) directory for runnable programs:
@@ -148,6 +169,7 @@ See the [examples/](examples/) directory for runnable programs:
 - [read_config.hc](examples/read_config.hc): Read and parse a YAML file from disk
 - [maps_and_lists.hc](examples/maps_and_lists.hc): Block maps, nested maps, lists, structure inspection
 - [flow_collections.hc](examples/flow_collections.hc): Flow sequences, flow mappings, mixed block+flow
+- [showcase.hc](examples/showcase.hc): Full library showcase — parse, navigate, emit
 
 Run an example:
 
@@ -164,7 +186,7 @@ src/
   scalar.hc        # Scalar value parsing (escapes, flow collections)
   parser.hc        # Block parser, block scalars, yaml_parse entry point
   api.hc           # Accessors and pipe-friendly API
-  display.hc       # yaml_show and yaml_pretty
+  display.hc       # yaml_show, yaml_pretty, yaml_emit, yaml_emit_flow
   main.hc          # Demo program
 examples/
   basic_parsing.hc
@@ -184,6 +206,7 @@ tests/
   test_structure.hc
   test_api.hc
   test_display.hc
+  test_emit.hc
   test_errors.hc
 ```
 
